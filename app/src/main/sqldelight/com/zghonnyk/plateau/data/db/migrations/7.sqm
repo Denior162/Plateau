@@ -1,0 +1,18 @@
+ALTER TABLE species ADD COLUMN target_pot_type TEXT
+    CHECK (target_pot_type IN ('classic', 'cachepot', 'self_watering', 'technical'));
+
+ALTER TABLE species ADD COLUMN watering_method TEXT
+    CHECK (watering_method IN ('root', 'drip', 'overhead', 'subsurface', 'auto'));
+
+ALTER TABLE pots ADD COLUMN pot_type TEXT
+    CHECK (pot_type IN ('classic', 'cachepot', 'self_watering', 'technical'));
+
+ALTER TABLE plants ADD COLUMN acquisition_date INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE plant_photos ADD COLUMN caption TEXT;
+
+UPDATE plants
+SET acquisition_date = COALESCE(
+    (SELECT MIN(timestamp) FROM measurements WHERE plant_id = plants.id),
+    (unixepoch() * 1000) -- Фолбэк на текущее время (в мс), если у растения еще нет замеров
+);

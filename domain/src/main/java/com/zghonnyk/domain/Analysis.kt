@@ -260,13 +260,30 @@ fun List<Measurement>.withRates(): List<MeasurementWithRate> {
 }
 
 private fun ExpFit.calculateOptimalInterval(
-    scaleAccuracyGrams: Double, minSignalMultiplier: Double
+    scaleAccuracyGrams: Double,
+    minSignalMultiplier: Double,
+    maxRateDropRatio: Double = 0.25
 ): Duration? {
     val remaining = amplitude * exp(-k * lastDay)
     val minSignal = scaleAccuracyGrams * minSignalMultiplier
+
+    // Если доступной воды меньше, чем шум весов — график вышел на плато
     if (remaining <= minSignal) return null
 
-    val days = -ln(1.0 - minSignal / remaining) / k
+    // Ограничение СНИЗУ (от 1-й производной):
+    // Минимум дней, чтобы весы вообще заметили разницу.
+    val daysForMinSignal = -ln(1.0 - minSignal / remaining) / k
+
+    // Ограничение СВЕРХУ (от 2-й производной):
+    // Максимум дней до момента, когда текущая скорость (rate) упадёт на maxRateDropRatio.
+    // rate(t+dt) = rate(t) * (1 - ratio) => exp(-k*dt) = 1 - ratio
+    val daysForDynamicCurve = -ln(1.0 - maxRateDropRatio) / k
+
+    // Идеальный интервал: ждём достаточно долго, чтобы весы "увидели" сигнал (daysForMinSignal),
+    // но если форма кривой меняется плавно (daysForDynamicCurve большое),
+    // разрешаем растянуть интервал, чтобы не спамить пользователя.
+    val days = maxOf(daysForMinSignal, daysForDynamicCurve)
+
     if (days.isNaN()) return null
 
     return days.days

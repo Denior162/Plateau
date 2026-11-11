@@ -470,7 +470,12 @@ class PlantsViewModel(
         if (name.isEmpty()) return
         val speciesId = s.form.selectedSpecies?.id?.value
 
-        viewModelScope.launch(Dispatchers.IO) { insertNewPlant(database, name, speciesId) }
+        viewModelScope.launch(Dispatchers.IO) { insertNewPlant(
+            database,
+            name,
+            speciesId,
+            acquisitionDate = now().toEpochMilli()
+        ) }
         reduce(PlantIntent.Creating.Save)
     }
 

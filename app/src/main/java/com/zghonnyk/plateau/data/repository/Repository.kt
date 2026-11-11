@@ -54,7 +54,11 @@ fun importRows(db: PlateauDatabase, rows: List<CsvRow>): ImportSummary {
                 species.getOrPut(name) { q.insertSpecies(name); q.lastInsertRowId().executeAsOne() }
             }
             val plantId = plants.getOrPut(plant to speciesId) {
-                q.insertPlant(plant, speciesId)
+                q.insertPlant(
+                    plant,
+                    speciesId,
+                    acquisition_date = timestamp?.toEpochMilli() ?: System.currentTimeMillis()
+                )
                 plantsAdded++
                 q.lastInsertRowId().executeAsOne()
             }
@@ -78,8 +82,12 @@ fun fetchPlantsWithSpecies(db: PlateauDatabase) =
 fun fetchMeasurementsForPlant(db: PlateauDatabase, plantId: Long) =
     db.plateauDatabaseQueries.selectMeasurementsForPlant(plantId).executeAsList()
 
-fun insertNewPlant(db: PlateauDatabase, name: String, speciesId: Long?) =
-    db.plateauDatabaseQueries.insertPlant(name, speciesId)
+fun insertNewPlant(db: PlateauDatabase, name: String, speciesId: Long?, acquisitionDate: Long) =
+    db.plateauDatabaseQueries.insertPlant(
+        name,
+        speciesId,
+        acquisition_date = acquisitionDate
+    )
 
 
 fun insertNewMeasurement(db: PlateauDatabase, plantId: Long, timestamp: Long, weightGrams: Double) =
@@ -175,3 +183,24 @@ fun insertNewRepotting(
 
 fun observeAllRepottings(db: PlateauDatabase) =
    db.plateauDatabaseQueries.selectAllRepottings().asFlow().mapToList(Dispatchers.IO)
+
+fun observeAllSoilAdditions(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectAllSoilAdditions().asFlow().mapToList(Dispatchers.IO)
+
+fun insertNewSoilAddition(
+    db: PlateauDatabase,
+    plantId: Long,
+    timestamp: Long,
+    addedGrams: Double?,
+    soilId: Long?,
+    weightAfterGrams: Double?,
+) {
+    val q = db.plateauDatabaseQueries
+    q.transaction {
+        q.insertSoilAddition(plantId, timestamp, addedGrams, soilId, null)
+        if (weightAfterGrams != null) q.insertMeasurement(plantId, timestamp, weightAfterGrams)
+    }
+}
+
+fun deleteSoilAddition(db: PlateauDatabase, id: Long) =
+    db.plateauDatabaseQueries.deleteSoilAddition(id)

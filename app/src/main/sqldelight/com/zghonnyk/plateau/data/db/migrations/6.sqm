@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX ux_species_name ON species(name);
+CREATE UNIQUE INDEX ux_measurements_plant_ts ON measurements(plant_id, timestamp);

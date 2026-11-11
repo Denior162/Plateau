@@ -1,0 +1,11 @@
+CREATE TABLE soil_addition_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id    INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    timestamp   INTEGER NOT NULL,
+    added_grams REAL CHECK (added_grams IS NULL OR added_grams > 0),
+    soil_id     INTEGER REFERENCES soil_types(id) ON DELETE SET NULL,
+    notes       TEXT,
+    UNIQUE (plant_id, timestamp)
+);
+
+CREATE INDEX idx_soil_addition_soil ON soil_addition_events(soil_id);

@@ -1,0 +1,66 @@
+CREATE TABLE soil_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    acidity_ph REAL,
+    components_description TEXT
+);
+
+CREATE TABLE rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    window_orientation TEXT
+);
+
+CREATE TABLE plant_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    timestamp INTEGER NOT NULL,
+    file_path TEXT NOT NULL
+);
+
+CREATE INDEX idx_photos_plant ON plant_photos(plant_id);
+
+ALTER TABLE species ADD COLUMN family TEXT;
+ALTER TABLE species ADD COLUMN common_name TEXT;
+ALTER TABLE species ADD COLUMN soil_id INTEGER REFERENCES soil_types(id) ON DELETE SET NULL;
+ALTER TABLE species ADD COLUMN dry_down_pct REAL;
+ALTER TABLE species ADD COLUMN extra_days INTEGER;
+
+ALTER TABLE plants ADD COLUMN room_id INTEGER REFERENCES rooms(id) ON DELETE SET NULL;
+ALTER TABLE plants ADD COLUMN pot_id INTEGER REFERENCES pots(id) ON DELETE SET NULL;
+ALTER TABLE plants ADD COLUMN notes TEXT;
+
+ALTER TABLE pots ADD COLUMN material TEXT;
+ALTER TABLE pots ADD COLUMN diameter_cm REAL;
+ALTER TABLE pots ADD COLUMN volume_liters REAL;
+
+ALTER TABLE prunings RENAME TO mass_removal_events;
+ALTER TABLE mass_removal_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'pruning';
+ALTER TABLE mass_removal_events ADD COLUMN notes TEXT;
+
+CREATE TABLE repotting_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    timestamp INTEGER NOT NULL,
+    old_pot_id INTEGER REFERENCES pots(id) ON DELETE SET NULL,
+    new_pot_id INTEGER NOT NULL REFERENCES pots(id),
+    soil_id INTEGER REFERENCES soil_types(id) ON DELETE SET NULL,
+    UNIQUE (plant_id, timestamp)
+);
+
+INSERT INTO repotting_events (id, plant_id, timestamp, old_pot_id, new_pot_id)
+SELECT r.id, r.plant_id, r.timestamp,
+       (SELECT p.pot_id FROM repottings p
+         WHERE p.plant_id = r.plant_id AND p.timestamp < r.timestamp
+         ORDER BY p.timestamp DESC LIMIT 1),
+       r.pot_id
+FROM repottings r;
+
+DROP TABLE repottings;
+
+CREATE INDEX idx_repotting_events_new_pot ON repotting_events(new_pot_id);
+
+UPDATE plants SET pot_id = (
+    SELECT e.new_pot_id FROM repotting_events e
+    WHERE e.plant_id = plants.id ORDER BY e.timestamp DESC LIMIT 1
+);

@@ -27,11 +27,11 @@ fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
 
     // Единственное место, где интент может не совпасть с состоянием
     // (например, запоздавший клик). Здесь можно логировать в debug.
-    is I.Overview -> if (state is S.Overview) state.reduce(intent) else state
-    is I.EditingName -> if (state is S.EditingName) state.reduce(intent) else state
+    is I.Overview -> state.reduceIf<S.Overview> { reduce(intent) }
+    is I.EditingName -> state.reduceIf<S.EditingName> { reduce(intent) }
+    is I.AddingMeasurement -> state.reduceIf<AddMeasurement> { reduce(intent) }
     is I.Creating -> if (state is S.Creating) state.reduce(intent) else state
     is I.Details -> if (state is S.Details.Plant) state.reduce(intent) else state
-    is I.AddingMeasurement -> if (state is AddMeasurement) state.reduce(intent) else state
     is I.LoggingWatering -> if (state is LogWatering) state.reduce(intent) else state
 
 
@@ -41,8 +41,12 @@ fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
     is I.Repotting -> if (state is S.PlantModal.Repotting) state.reduce(intent) else state
 }
 
-// ───────────── прямые переходы: каждый определён на типе-источнике ─────────────
-
+inline fun <reified T : S.Active> S.Active.reduceIf(
+    crossinline transform: T.() -> S.Active
+): S.Active = when (this) {
+    is T -> transform()
+    else -> this
+}
 private fun S.PlantModal.Repotting.reduce(i: I.Repotting): S.Active = when (i) {
     I.Repotting.Save -> parent
     I.Repotting.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
