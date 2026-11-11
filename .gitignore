@@ -13,6 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
-
+*.db
+*.db-shm
+*.db-wal
 # Project exclude paths
 /feature/main/build/
