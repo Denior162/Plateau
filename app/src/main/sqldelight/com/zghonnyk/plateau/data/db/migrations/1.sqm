@@ -1,0 +1,10 @@
+DELETE FROM measurements WHERE plant_id NOT IN (SELECT id FROM plants);
+DELETE FROM watering_sessions WHERE plant_id NOT IN (SELECT id FROM plants);
+
+CREATE TABLE pot (
+    plant_id   INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    since      INTEGER NOT NULL,
+    tare_grams REAL CHECK (tare_grams IS NULL OR tare_grams >= 0),
+    dry_grams  REAL CHECK (dry_grams IS NULL OR dry_grams > COALESCE(tare_grams, 0)),
+    PRIMARY KEY (plant_id, since)
+) WITHOUT ROWID;

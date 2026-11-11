@@ -1,0 +1,17 @@
+CREATE TABLE repottings (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id  INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    timestamp INTEGER NOT NULL,
+    pot_id    INTEGER NOT NULL REFERENCES pots(id),
+    UNIQUE (plant_id, timestamp)
+);
+
+CREATE INDEX idx_repottings_pot ON repottings(pot_id);
+
+CREATE TABLE prunings (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id      INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    timestamp     INTEGER NOT NULL,
+    removed_grams REAL CHECK (removed_grams IS NULL OR removed_grams > 0),
+    UNIQUE (plant_id, timestamp)
+);

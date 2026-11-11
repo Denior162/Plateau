@@ -1,0 +1,222 @@
+CREATE TABLE species (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE plants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    species_id INTEGER REFERENCES species(id) ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE INDEX idx_plants_species ON plants(species_id);
+
+CREATE TABLE measurements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    timestamp INTEGER NOT NULL,
+    weight_grams REAL NOT NULL
+);
+
+CREATE INDEX idx_measurements_plant ON measurements(plant_id);
+
+CREATE TABLE watering_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    timestamp INTEGER NOT NULL,
+    water_volume_ml REAL
+);
+
+CREATE INDEX idx_watering_plant ON watering_sessions(plant_id);
+
+CREATE TABLE pots (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    name             TEXT NOT NULL,
+    empty_mass_grams REAL CHECK (empty_mass_grams IS NULL OR empty_mass_grams > 0)
+);
+
+CREATE TABLE repottings (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id  INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    timestamp INTEGER NOT NULL,
+    pot_id    INTEGER NOT NULL REFERENCES pots(id),
+    UNIQUE (plant_id, timestamp)
+);
+
+CREATE INDEX idx_repottings_pot ON repottings(pot_id);
+
+CREATE TABLE prunings (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    plant_id      INTEGER NOT NULL REFERENCES plants(id) ON DELETE CASCADE,
+    timestamp     INTEGER NOT NULL,
+    removed_grams REAL CHECK (removed_grams IS NULL OR removed_grams > 0),
+    UNIQUE (plant_id, timestamp)
+);
+
+INSERT INTO species (id, name) VALUES
+(1, 'Gasteraloe'),
+(2, 'Zamioculcas zamiifolia'),
+(3, 'Sansevieria parva'),
+(4, 'Haworthia'),
+(5, 'Capsicum annuum');
+
+INSERT INTO plants (id, name, species_id) VALUES
+(1, 'Gasteraloe', 1),
+(2, 'ZZ Main', 2),
+(3, 'Sansevieria', 3),
+(4, 'Haworthia', 4),
+(5, 'Pepper', 5),
+(6, 'ZZ 60g', 2),
+(7, 'Micro Cactus', NULL);
+
+INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
+(1, 1790316000000, 1431.0),
+(1, 1790402400000, 1422.0),
+(1, 1790488800000, 1412.0),
+(1, 1790575200000, 1404.0),
+(1, 1790668800000, 1395.0),
+(1, 1790744580000, 1388.0),
+(1, 1790837400000, 1380.0),
+(1, 1790922300000, 1371.0),
+(1, 1791010800000, 1363.0),
+(1, 1791097200000, 1356.0),
+(1, 1791181800000, 1350.0),
+(1, 1791269280000, 1343.0),
+(1, 1791354780000, 1338.0),
+(1, 1791440700000, 1333.0),
+(1, 1791529440000, 1328.0);
+
+INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
+(2, 1791358200000, 4150.0),
+(2, 1791440760000, 4130.0),
+(2, 1791529140000, 4114.0);
+
+INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
+(3, 1790316000000, 1052.0),
+(3, 1790402400000, 1043.0),
+(3, 1790488800000, 1033.0),
+(3, 1790575200000, 1026.0),
+(3, 1790668800000, 1018.0),
+(3, 1790744580000, 1008.0),
+(3, 1790837400000, 999.0),
+(3, 1790922300000, 990.0),
+(3, 1791010800000, 982.0),
+(3, 1791097200000, 974.0),
+(3, 1791181800000, 965.0),
+(3, 1791269100000, 959.0),
+(3, 1791354600000, 953.0);
+
+INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
+(4, 1790837400000, 480.0),
+(4, 1790922300000, 476.0),
+(4, 1791010800000, 472.0),
+(4, 1791097200000, 469.0),
+(4, 1791181800000, 466.0),
+(4, 1791269100000, 463.0),
+(4, 1791354600000, 461.0);
+
+INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
+(5, 1791111180000, 1690.0),
+(5, 1791142500000, 1675.0),
+(5, 1791182280000, 1664.0),
+(5, 1791269280000, 1620.0),
+(5, 1791354600000, 1591.0),
+(5, 1791440580000, 1563.0),
+(5, 1791529740000, 1537.0);
+
+INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
+(6, 1791354600000, 882.0),
+(6, 1791358200000, 1039.0),
+(6, 1791441000000, 1023.0),
+(6, 1791530640000, 1009.0);
+
+INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
+(7, 1791354600000, 397.0),
+(7, 1791358200000, 455.0),
+(7, 1791441000000, 449.0),
+(7, 1791530760000, 445.0);
+
+selectAllSpecies:
+SELECT * FROM species ORDER BY name ASC;
+
+insertSpecies:
+INSERT INTO species (name) VALUES (?);
+
+selectAllPlantsWithSpecies:
+SELECT
+    plants.id,
+    plants.name AS plant_name,
+    plants.species_id,
+    species.name AS species_name
+FROM plants
+LEFT JOIN species ON plants.species_id = species.id
+ORDER BY plants.id DESC;
+
+insertPlant:
+INSERT INTO plants (name, species_id)
+VALUES (?, ?);
+
+deletePlant:
+DELETE FROM plants WHERE id = ?;
+
+selectMeasurementsForPlant:
+SELECT * FROM measurements
+WHERE plant_id = ?
+ORDER BY timestamp ASC;
+
+insertMeasurement:
+INSERT INTO measurements (plant_id, timestamp, weight_grams)
+VALUES (?, ?, ?);
+
+deleteMeasurement:
+DELETE FROM measurements WHERE id = ?;
+
+updatePlant:
+UPDATE plants SET name = ?, species_id = ? WHERE id = ?;
+
+updateMeasurement:
+UPDATE measurements
+SET weight_grams = :weightGrams
+WHERE id = :id;
+
+selectAllMeasurements:
+SELECT * FROM measurements
+ORDER BY timestamp;
+
+lastInsertRowId:
+SELECT last_insert_rowid();
+
+insertWatering:
+INSERT INTO watering_sessions (plant_id, timestamp, water_volume_ml)
+VALUES (?, ?, ?);
+
+selectAllWatering:
+SELECT * FROM watering_sessions
+ORDER BY timestamp;
+
+selectAllPots:
+SELECT * FROM pots ORDER BY name;
+
+insertPot:
+INSERT INTO pots(name, empty_mass_grams) VALUES (?, ?);
+
+selectAllRepottings:
+SELECT r.id, r.plant_id, r.timestamp, r.pot_id, p.name AS pot_name, p.empty_mass_grams
+FROM repottings r
+JOIN pots p ON p.id = r.pot_id
+ORDER BY r.timestamp;
+
+insertRepotting:
+INSERT INTO repottings(plant_id, timestamp, pot_id) VALUES (?, ?, ?);
+
+deleteRepotting:
+DELETE FROM repottings WHERE id = ?;
+
+selectAllPrunings:
+SELECT * FROM prunings ORDER BY timestamp;
+
+insertPruning:
+INSERT INTO prunings(plant_id, timestamp, removed_grams) VALUES (?, ?, ?);
+
+deletePruning:
+DELETE FROM prunings WHERE id = ?;

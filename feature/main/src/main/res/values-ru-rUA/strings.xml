@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Плато</string>
+    <string name="add_plant">Добавить растение</string>
+    <string name="adding_plant">Добавление нового растения</string>
+    <string name="add_plant_name_placeholder">Впишите имя растения сюда</string>
+</resources>

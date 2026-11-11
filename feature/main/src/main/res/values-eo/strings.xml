@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Altebenaĵo</string>
+    <string name="add_plant">Aldoni planton</string>
+    <string name="adding_plant">Aldoni novan planton</string>
+    <string name="add_plant_name_placeholder">Skribu la nomon de la planto tie</string>
+</resources>

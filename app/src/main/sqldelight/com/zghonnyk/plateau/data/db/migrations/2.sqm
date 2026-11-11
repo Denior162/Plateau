@@ -1,0 +1,7 @@
+CREATE TABLE pots (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    name             TEXT NOT NULL,
+    empty_mass_grams REAL CHECK (empty_mass_grams IS NULL OR empty_mass_grams > 0)
+);
+
+DROP TABLE pot;

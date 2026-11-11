@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="view_watering_history">View watering history</string>
+    <string name="app_name">Plateau</string>
+    <string name="add_plant">Add plant</string>
+    <string name="adding_plant">Add new plant</string>
+    <string name="add_plant_name_placeholder">Write plant name there</string>
+    <string name="export_csv">Export CSV</string>
+    <string name="import_csv">Import CSV</string>
+    <string name="view_measurement_history">View measurement history</string>
+    <string name="drying_insufficient_data">Insufficient data</string>
+    <string name="drying_still">Drying (%1$.1f g/day)</string>
+    <string name="drying_near_plateau">Near plateau (%1$.1f g/day)</string>
+    <string name="days_awaiting">Awaiting measurements</string>
+    <string name="days_plateau_reached">Plateau reached</string>
+    <string name="add_measurement">Add measurement</string>
+    <string name="cu_watered">Watered?</string>
+    <string name="not_watered_yet">Not watered yet</string>
+    <plurals name="days_to_plateau">
+        <item quantity="one">~%d day to plateau</item>
+        <item quantity="few">~%d days to plateau</item>
+        <item quantity="many">~%d days to plateau</item>
+        <item quantity="other">~%d days to plateau</item>
+    </plurals>
+    <string name="no_meas">There is no measurements.\nTime to add first weight!</string>
+    <string name="expected_weight_placeholder">%1$d–%2$d g</string>
+    <string name="specify_pruning">Specify pruning</string>
+    <string name="weight_after_pruning">Weight after pruning</string>
+    <string name="prune_dialog_title">After the prune, the cycle will be updated. From the previous cycle only substrate moisture will be taken into account.</string>
+    <string name="add_picture">Add picture</string>
+
+</resources>
