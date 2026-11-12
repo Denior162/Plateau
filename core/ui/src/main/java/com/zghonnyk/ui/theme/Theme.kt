@@ -1,5 +1,6 @@
 package com.zghonnyk.ui.theme
 
+import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -10,21 +11,13 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun PlateauTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        else -> TODO()
-    }
-
+    val context = LocalContext.current
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
+        colorScheme = colorScheme(darkTheme, context), typography = Typography, content = content
     )
 }
+
+fun colorScheme(darkTheme: Boolean, context: Context) =
+    if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
