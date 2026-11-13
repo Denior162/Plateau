@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -68,6 +69,7 @@ import com.zghonnyk.plateau.feature.main.ui.state.MonthGroupUiModel
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.LoggingWatering.SetWateringTimestamp
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Pruning.SetPruningTimestamp
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Repotting.SetRepottingTimestamp
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.RecordUiModel
@@ -75,6 +77,8 @@ import com.zghonnyk.plateau.feature.main.ui.state.placeholderText
 import com.zghonnyk.ui.theme.spacing
 import java.time.Instant
 import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 import androidx.compose.material3.MaterialTheme as Theme
@@ -163,7 +167,9 @@ fun WateringDialog(
 
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(
-            onDismiss = onCloseDateTimePicker, onDateTimeSelected = onSetTimestamp
+            onDismiss = onCloseDateTimePicker,
+            onDateTimeSelected = onSetTimestamp,
+            initialTimestamp = null
         )
     }
     AlertDialog(onDismissRequest = onCancel, title = { Text("Полив") }, text = {
@@ -220,7 +226,9 @@ fun PruningDialog(
 
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(
-            onDismiss = onCloseDateTimePicker, onDateTimeSelected = onSetTimestamp
+            onDismiss = onCloseDateTimePicker,
+            onDateTimeSelected = onSetTimestamp,
+            initialTimestamp = null
         )
     }
     AlertDialog(
@@ -281,9 +289,12 @@ private fun DetailsDialogs(modal: PlantState.PlantModal?, onIntent: (PlantIntent
             )
         }
 
-        is PlantState.PlantModal.EditMeasurement -> {
-            EditMeasurementDialog(state = modal, onIntent = onIntent)
-        }
+        is PlantState.PlantModal.EditMeasurement -> EditWeightDialog(
+            title = "Редагувати вимір",
+            input = modal.weightInput,
+            onSave = { onIntent(PlantIntent.EditingMeasurement.Save) },
+            onCancel = { onIntent(PlantIntent.Back) },
+        )
 
         is PlantState.PlantModal.EditPlant -> {
             TODO()
@@ -310,9 +321,10 @@ private fun DetailsDialogs(modal: PlantState.PlantModal?, onIntent: (PlantIntent
             onOpenDateTimePicker = { onIntent(PlantIntent.Repotting.OpenDateTimePicker) },
             onCloseDateTimePicker = { onIntent(PlantIntent.Repotting.CloseDateTimePicker) },
             onSetTimestamp = { instant ->
-                onIntent(PlantIntent.Repotting.SetRepottingTimestamp(instant))
+                onIntent(SetRepottingTimestamp(instant))
             }
         )
+
     }
 }
 
@@ -331,7 +343,9 @@ fun RepottingDialog(
 
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(
-            onDismiss = onCloseDateTimePicker, onDateTimeSelected = onSetTimestamp
+            onDismiss = onCloseDateTimePicker,
+            onDateTimeSelected = onSetTimestamp,
+            initialTimestamp = null
         )
     }
 
@@ -405,7 +419,7 @@ fun BottomButtonGroup(
 
     if (isDateTimePickerOpen) {
         MeasurementDateTimePicker(
-            onCloseDateTimePicker, onSetTimestamp
+            null, onCloseDateTimePicker, onSetTimestamp
         )
     }
 
@@ -559,7 +573,6 @@ private fun PlantScreenContent(
 ) = when (plant.records.isEmpty()) {
     true -> {
 
-
         Box(
             modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center
         ) {
@@ -654,8 +667,9 @@ private fun PlantScreenContent(
                     onEdit = {
                         onIntent(
                             PlantIntent.Details.StartEditingMeasurement(
-                                it.id.value,
-                                it.weight
+                                it.id,
+                                it.weight,
+                                timestamp = it.timestamp
                             )
                         )
                     },
@@ -691,7 +705,7 @@ fun UsefulAnalyticsCard(
             Text(
                 text = "Drying Analytics",
                 style = Theme.typography.labelLarge,
-                color = Theme.colorScheme.tertiary
+                color = Theme.colorScheme.onTertiaryContainer
             )
         }
 
@@ -717,7 +731,7 @@ fun UsefulAnalyticsCard(
         if (predictedWeight != null) {
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = spacing.small),
-                color = Theme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f)
+                color = Theme.colorScheme.onTertiaryContainer
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -727,12 +741,12 @@ fun UsefulAnalyticsCard(
                 Text(
                     text = "Predicted plateau weight: ${predictedWeight.roundToInt()} g",
                     style = Theme.typography.bodySmall,
-                    color = Theme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    color = Theme.colorScheme.onTertiaryContainer
                 )
                 Text(
                     text = "RMSE: %.1f г".format(Locale.US, rmseVal),
                     style = Theme.typography.bodySmall,
-                    color = Theme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    color = Theme.colorScheme.onTertiaryContainer
                 )
             }
         }
@@ -834,32 +848,41 @@ fun PlantTitle(title: String) = Text(
 )
 
 @Composable
-fun EditMeasurementDialog(
-    state: PlantState.PlantModal.EditMeasurement,
-    onIntent: (PlantIntent) -> Unit // <-- Правильный тип
-) {
+fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent: (PlantIntent) -> Unit) {
+    val formattedDate = remember(state.timestamp) {
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+            .withZone(ZoneId.systemDefault())
+            .format(state.timestamp)
+    }
+
     AlertDialog(
         onDismissRequest = { onIntent(PlantIntent.Back) },
         title = { Text("Редагувати вимір") },
         text = {
-            OutlinedTextField(
-                state = state.weightInput,
-                label = { Text("Вага (г)") },
-                modifier = Modifier.fillMaxWidth(),
-                lineLimits = TextFieldLineLimits.SingleLine,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) {
-                Text("Зберегти")
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
+                OutlinedTextField(
+                    state = state.weightInput,
+                    label = { Text("Вага (г)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                OutlinedButton(onClick = { onIntent(PlantIntent.EditingMeasurement.OpenDateTimePicker) }) {
+                    Icon(painterResource(R.drawable.edit_calendar), contentDescription = null)
+                    Text(formattedDate)
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = { onIntent(PlantIntent.Back) }) {
-                Text("Скасувати")
-            }
-        })
+        confirmButton = { TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) { Text("Зберегти") } },
+        dismissButton = { TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text("Скасувати") } },
+    )
+    if (state.isDateTimePickerOpen) {
+        MeasurementDateTimePicker(
+            onDismiss = { onIntent(PlantIntent.EditingMeasurement.CloseDateTimePicker) },
+            onDateTimeSelected = { onIntent(PlantIntent.EditingMeasurement.SetTimestamp(it)) },
+            initialTimestamp = state.timestamp,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -1,12 +1,13 @@
 package com.zghonnyk.plateau.feature.main.ui.state
 
 import androidx.compose.foundation.text.input.TextFieldState
-import com.zghonnyk.domain.MeasurementId
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.AddMeasurement
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditMeasurement
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditPlant
+import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.HistoryModal
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.LogWatering
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Pruning
+import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Repotting
 import com.zghonnyk.vector_zipper.VectorZipper
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent as I
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState as S
@@ -22,23 +23,37 @@ fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
     I.Back -> state.parent ?: state
     is I.Loaded -> state.onLoaded(intent)
 
-    // Побочные эффекты живут во ViewModel; состояние не меняют.
     I.Refresh, is I.ExportCsv, is I.ImportCsv, is I.Pruning.Save, is I.Repotting.Save -> state
 
-    // Единственное место, где интент может не совпасть с состоянием
-    // (например, запоздавший клик). Здесь можно логировать в debug.
     is I.Overview -> state.reduceIf<S.Overview> { reduce(intent) }
     is I.EditingName -> state.reduceIf<S.EditingName> { reduce(intent) }
     is I.AddingMeasurement -> state.reduceIf<AddMeasurement> { reduce(intent) }
     is I.Creating -> if (state is S.Creating) state.reduce(intent) else state
-    is I.Details -> if (state is S.Details.Plant) state.reduce(intent) else state
+    is I.Details -> when (state) {
+        is S.Details.Plant -> state.reduce(intent)
+        is S.Details.History -> state.reduce(intent)
+        else -> state
+    }
     is I.LoggingWatering -> if (state is LogWatering) state.reduce(intent) else state
 
 
     is I.EditingPlant -> if (state is EditPlant) state.reduce(intent) else state
-    is I.EditingMeasurement -> if (state is EditMeasurement) state.reduce(intent) else state
+    is I.EditingMeasurement -> when (state) {
+        is EditMeasurement -> state.reduce(intent)
+        is HistoryModal.EditMeasurement -> state.reduce(intent)
+        else -> state
+    }
+    is I.EditingWatering -> if (state is HistoryModal.EditWatering) state.reduce(intent) else state
+
     is I.Pruning -> if (state is Pruning) state.reduce(intent) else state
-    is I.Repotting -> if (state is S.PlantModal.Repotting) state.reduce(intent) else state
+    is I.Repotting -> if (state is Repotting) state.reduce(intent) else state
+}
+
+private fun HistoryModal.EditMeasurement.reduce(i: I.EditingMeasurement): S.Active = when (i) {
+    I.EditingMeasurement.Save -> parent
+    I.EditingMeasurement.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
+    I.EditingMeasurement.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
+    is I.EditingMeasurement.SetTimestamp -> copy(timestamp = i.timestamp, isDateTimePickerOpen = false)
 }
 
 inline fun <reified T : S.Active> S.Active.reduceIf(
@@ -62,7 +77,25 @@ private fun Pruning.reduce(i: I.Pruning): S.Active = when (i) {
     is I.Pruning.SetPruningTimestamp ->
         copy(customTimestamp = i.timestamp, isDateTimePickerOpen = false)
 }
+private fun S.Details.History.reduce(i: I.Details): S.Active = when (i) {
+    is I.Details.StartEditingMeasurement -> HistoryModal.EditMeasurement(
+        parent = this,
+        measurementId = i.id,
+        weightInput = TextFieldState(i.currentWeightString),
+        originalTimestamp = i.timestamp,
+        timestamp = i.timestamp,
+    )
 
+    is I.Details.StartEditingWatering -> HistoryModal.EditWatering(
+        parent = this,
+        wateringId = i.wateringEventId,
+        volumeInput = TextFieldState(i.currentMl),
+        originalTimestamp = i.timestamp,
+        timestamp = i.timestamp,
+    )
+
+    else -> this
+}
 private fun S.Overview.reduce(i: I.Overview): S.Active = when (i) {
     I.Overview.OpenAddPlant -> S.Creating(
         parent = this,
@@ -109,6 +142,7 @@ private fun S.Details.Plant.reduce(i: I.Details): S.Active = when (i) {
     I.Details.OpenAddMeasurement -> AddMeasurement(parent = this)
     I.Details.OpenWateringDialog -> LogWatering(parent = this)
     I.Details.OpenPruning -> Pruning(parent = this)
+    I.Details.OpenRepottingDialog -> Repotting(parent = this)
 
     I.Details.StartEditingPlant -> EditPlant(
         parent = this,
@@ -117,18 +151,21 @@ private fun S.Details.Plant.reduce(i: I.Details): S.Active = when (i) {
         selectedSpeciesId = focus.speciesId,
     )
 
-    is I.Details.StartEditingMeasurement -> EditMeasurement(
-        parent = this,
-        measurementId = MeasurementId(i.measurementId),
+    is I.Details.StartEditingMeasurement -> HistoryModal.EditMeasurement(
+        parent = S.Details.History(this),
+        measurementId = i.id,
         weightInput = TextFieldState(i.currentWeightString),
+        originalTimestamp = i.timestamp,
+        timestamp = i.timestamp,
     )
 
-    I.Details.OpenMeasurementHistory,
-    I.Details.OpenWateringHistory,
+    is I.Details.StartEditingWatering,
     is I.Details.CopyMonth,
-    is I.Details.DeleteMeasurement -> this
+    is I.Details.DeleteMeasurement,
+    is I.Details.DeleteWatering -> this
 
-    I.Details.OpenRepottingDialog -> S.PlantModal.Repotting(parent = this)
+    I.Details.OpenMeasurementHistory,
+    I.Details.OpenWateringHistory -> S.Details.History(parent = this)
 }
 
 private fun AddMeasurement.reduce(i: I.AddingMeasurement): S.Active = when (i) {
@@ -155,9 +192,18 @@ private fun EditPlant.reduce(i: I.EditingPlant): S.Active = when (i) {
 
 private fun EditMeasurement.reduce(i: I.EditingMeasurement): S.Active = when (i) {
     I.EditingMeasurement.Save -> parent
+    I.EditingMeasurement.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
+    I.EditingMeasurement.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
+    is I.EditingMeasurement.SetTimestamp -> copy(timestamp = i.timestamp, isDateTimePickerOpen = false)
 }
 
-// ───────────── результаты загрузок: применяются к ТЕКУЩЕМУ состоянию ─────────────
+private fun HistoryModal.EditWatering.reduce(i: I.EditingWatering): S.Active = when (i) {
+    I.EditingWatering.Save -> parent
+    I.EditingWatering.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
+    I.EditingWatering.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
+    is I.EditingWatering.SetTimestamp -> copy(timestamp = i.timestamp, isDateTimePickerOpen = false)
+}
+
 
 private fun S.Active.onLoaded(m: I.Loaded): S.Active = when (m) {
     is I.Loaded.Species ->
@@ -216,9 +262,15 @@ private fun S.Active.withPlants(plants: List<PlantUi>): S.Active {
         is EditMeasurement -> parent.rebased(plants) { copy(parent = it) }
         is EditPlant -> parent.rebased(plants) { copy(parent = it) }
         is Pruning -> parent.rebased(plants) { copy(parent = it) }
-        is S.PlantModal.Repotting -> parent.rebased(plants) { copy(parent = it) }
-        is S.Details.History -> TODO()
-    }
+        is Repotting -> parent.rebased(plants) { copy(parent = it) }
+        is S.Details.History -> parent.rebased(plants) { copy(parent = it) }
+        is HistoryModal -> parent.parent.rebased(plants) { rebasedPlant ->
+            val newHistory = S.Details.History(rebasedPlant)
+            when (this) {
+                is HistoryModal.EditMeasurement -> copy(parent = newHistory)
+                is HistoryModal.EditWatering -> copy(parent = newHistory)
+            }
+        }    }
 }
 
 /** Фокус остаётся на том же растении; если оно исчезло — на соседнем (как раньше). */

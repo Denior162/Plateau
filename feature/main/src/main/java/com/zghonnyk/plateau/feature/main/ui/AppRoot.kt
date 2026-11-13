@@ -14,6 +14,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.zghonnyk.plateau.feature.main.ui.screen.AddPlantScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryMeasScreen
+import com.zghonnyk.plateau.feature.main.ui.screen.HistoryScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryWatersScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.PlantScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.PotsScreen
@@ -88,22 +89,47 @@ private fun ActiveHost(
             )
             is PlantState.Species -> SpeciesScreen(screen.species) { onIntent(PlantIntent.Back) }
             is PlantState.Details.HistoryMeas -> HistoryMeasScreen(
-                { onIntent(PlantIntent.Back) },
-                screen.plant.name,
-                screen.elements
+                onBack = { onIntent(PlantIntent.Back) },
+                screenName = screen.plant.name,
+                elements = screen.elements,
+                onEdit = { item ->
+                    onIntent(
+                        PlantIntent.Details.StartEditingMeasurement(
+                            item.id,
+                            item.formattedWeight,
+                            item.timestamp
+                        )
+                    )
+                },
+                onDelete = { item -> onIntent(PlantIntent.Details.DeleteMeasurement(item.id)) }
             )
 
             is PlantState.Details.HistoryWaters -> HistoryWatersScreen(
-                { onIntent(PlantIntent.Back) },
-                screen.plant.name,
-                screen.elements
+                onBack = { onIntent(PlantIntent.Back) },
+                screenName = screen.plant.name,
+                elements = screen.elements,
+                onEdit = { item ->
+                    onIntent(
+                        PlantIntent.Details.StartEditingWatering(
+                            item.id,
+                            item.formattedVolume,
+                            item.timestamp
+                        )
+                    )
+                },
+                onDelete = { item -> onIntent(PlantIntent.Details.DeleteWatering(item.id)) }
             )
 
             is PlantState.Details.Plant -> PlantScreen(
                 plant = screen, modal = state as? PlantState.PlantModal, onIntent = onIntent
             )
 
-            is PlantState.Details.History -> TODO()
+            is PlantState.Details.History -> HistoryScreen(
+                plant = screen.plant,
+                modal = state as? PlantState.PlantModal.HistoryModal,
+                onIntent = onIntent,
+            )
+
         }
     }
 }
@@ -145,5 +171,4 @@ private fun PlantState.Screen.key(): Any = when (this) {
     is PlantState.Overview -> "overview"
     is PlantState.Creating -> "creating"
     is PlantState.Species -> "species"
-    is PlantState.Details.History -> TODO()
-}
+    is PlantState.Details.History -> "hist:${plant.id.value}"}

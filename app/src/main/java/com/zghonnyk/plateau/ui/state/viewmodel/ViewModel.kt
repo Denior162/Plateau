@@ -12,11 +12,13 @@ import com.zghonnyk.domain.DryingConfig
 import com.zghonnyk.domain.DryingForecast
 import com.zghonnyk.domain.Measurement
 import com.zghonnyk.domain.MeasurementId
-import com.zghonnyk.domain.MoistureReading
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.domain.PlantTemporalEvent
+import com.zghonnyk.domain.PotId
 import com.zghonnyk.domain.PruningEvent
 import com.zghonnyk.domain.PruningEventId
+import com.zghonnyk.domain.RepottingEvent
+import com.zghonnyk.domain.RepottingEventId
 import com.zghonnyk.domain.Tare
 import com.zghonnyk.domain.WateringEvent
 import com.zghonnyk.domain.WateringEventId
@@ -36,7 +38,6 @@ import com.zghonnyk.plateau.data.repository.exportRows
 import com.zghonnyk.plateau.data.repository.fetchAllSpecies
 import com.zghonnyk.plateau.data.repository.fetchMeasurementsForPlant
 import com.zghonnyk.plateau.data.repository.fetchWateringsForPlant
-import com.zghonnyk.plateau.data.repository.importRows
 import com.zghonnyk.plateau.data.repository.insertNewMeasurement
 import com.zghonnyk.plateau.data.repository.insertNewPlant
 import com.zghonnyk.plateau.data.repository.insertNewPruning
@@ -44,12 +45,15 @@ import com.zghonnyk.plateau.data.repository.insertNewRepotting
 import com.zghonnyk.plateau.data.repository.insertNewWatering
 import com.zghonnyk.plateau.data.repository.observeAllMeasurements
 import com.zghonnyk.plateau.data.repository.observeAllPrunings
+import com.zghonnyk.plateau.data.repository.observeAllRepottings
 import com.zghonnyk.plateau.data.repository.observeAllWaterings
 import com.zghonnyk.plateau.data.repository.observePlantsWithSpecies
 import com.zghonnyk.plateau.data.repository.removePlant
+import com.zghonnyk.plateau.data.repository.updateMeasurement
 import com.zghonnyk.plateau.data.repository.updatePlant
 import com.zghonnyk.plateau.data.toDomain
-import com.zghonnyk.plateau.domain.parseCsvRows
+import com.zghonnyk.plateau.domain.importBackup
+import com.zghonnyk.plateau.domain.parseBackup
 import com.zghonnyk.plateau.domain.toCsv
 import com.zghonnyk.plateau.feature.main.ui.components.ChartPoint
 import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
@@ -119,8 +123,7 @@ class PlantsViewModel(
 
     private var deleteJob: Job? = null
 
-    private val _messages =
-        Channel<String>(Channel.BUFFERED) //TODO(_messages по-прежнему никуда не выставлен, так что сообщения об экспорте и импорте не показываются)
+    private val _messages = Channel<String>(Channel.BUFFERED)
 
     private fun exportCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -137,7 +140,7 @@ class PlantsViewModel(
             val msg = runCatching {
                 val input = openIn(uri) ?: error("не удалось открыть файл")
                 val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                importRows(database, parseCsvRows(text))
+                importBackup(database, parseBackup(text))
             }.fold(
                 { "Растений: +${it.plantsAdded}, замеров: +${it.measurementsAdded}, дублей пропущено: ${it.measurementsSkipped}" },
                 { "Ошибка импорта: ${it.message}" },
@@ -145,7 +148,9 @@ class PlantsViewModel(
             _messages.send(msg)
         }
     }
-    private val phaseAnalysisCache = java.util.concurrent.ConcurrentHashMap<List<Measurement>, DryingForecast>()
+
+    private val phaseAnalysisCache =
+        java.util.concurrent.ConcurrentHashMap<List<Measurement>, DryingForecast>()
 
     private fun analyzeCached(measurements: List<Measurement>): DryingForecast {
         if (measurements.isEmpty()) return DryingForecast.InsufficientData(null)
@@ -158,16 +163,15 @@ class PlantsViewModel(
         observePlantsWithSpecies(database),
         observeAllMeasurements(database),
         observeAllWaterings(database),
-        observeAllPrunings(database)
-    ) { rawPlants, allMeasurements, allWaterings, allPrunings ->
+        observeAllPrunings(database),
+        observeAllRepottings(database),
+    ) { rawPlants, allMeasurements, allWaterings, allPrunings, allRepottings ->
         val measurementsByPlant = allMeasurements.groupBy { it.plant_id }
         val wateringByPlant = allWaterings.groupBy { it.plant_id }
         val pruningByPlant = allPrunings.groupBy { it.plant_id }
+        val repottingsByPlant = allRepottings.groupBy { it.plant_id }
         rawPlants.map { plant ->
             val plantId = PlantId(plant.id)
-
-
-
             val measurements = measurementsByPlant[plant.id].orEmpty().map { dbMeasurement ->
                 Measurement(
                     id = MeasurementId(dbMeasurement.id),
@@ -192,25 +196,28 @@ class PlantsViewModel(
                     removedGrams = it.removed_grams
                 )
             }
-            val events = (waterings + prunings).sortedBy { it.timestamp }
-            val hasWatering = events.isNotEmpty()
 
-            // 2. Нарезаем на фазы
+            val repottings: List<PlantTemporalEvent> = repottingsByPlant[plant.id].orEmpty().map {
+                RepottingEvent(
+                    RepottingEventId(it.id),
+                    plantId,
+                    Instant.ofEpochMilli(it.timestamp),
+                    PotId(it.pot_id)
+                )
+            }
+            val events = (waterings + prunings + repottings).sortedBy { it.timestamp }
+            val hasWatering = waterings.isNotEmpty()
+
             val phases = splitIntoPhases(measurements, events)
 
-            // 3. Анализируем фазы (старые фазы достанутся из кэша за О(1))
             val analyzedPhases = phases.map { phase ->
                 AnalyzedPhase(phase, analyzeCached(phase.measurements))
             }
-
-            // 4. Вытаскиваем current (он может иметь пустой список замеров после подрезки/полива!)
+            val pot: Tare = repottingsByPlant[plant.id]?.lastOrNull()?.empty_mass_grams?.let { Tare.Known(it) } ?: Tare.Unknown
             val currentAnalyzed = analyzedPhases.lastOrNull()
             val activeMeasurements = currentAnalyzed?.phase?.measurements.orEmpty()
-            val forecast = currentAnalyzed?.forecast
-                ?: DryingForecast.InsufficientData(null)
+            val forecast = currentAnalyzed?.forecast ?: DryingForecast.InsufficientData(null)
 
-            // 5. Правильный lastWeighedAt по ВСЕМ замерам (Пункт 1 из твоего чеклиста)
-            // Растение не "забудет", когда его взвешивали, даже если текущая фаза пуста.
             val lastWeighedAt = phases.allMeasurementsFlattened().lastOrNull()?.timestamp
 
             val records = if (activeMeasurements.isNotEmpty()) {
@@ -218,8 +225,7 @@ class PlantsViewModel(
             } else {
                 emptyList()
             }
-            val moisture: MoistureReading? = analyzedPhases.latestMoisture(Tare.Unknown) //TODO
-            val timeline = timeline(phases, events)
+
             PlantFacts(
                 id = plantId,
                 name = plant.plant_name,
@@ -235,16 +241,14 @@ class PlantsViewModel(
                 activeMeasurements = activeMeasurements,
                 readyAt = readyAt(lastWeighedAt, forecast.recommendedInterval),
 
-                moisture = moisture,
-                timeline
+                analyzedPhases.latestMoisture(pot),
+                timeline(phases, events)
             )
-        }.sortedWith(
-            compareBy<PlantFacts> { it.records.isNotEmpty() }
-                .thenBy(nullsLast()) { it.readyAt }
+        }
+            .sortedWith(compareBy<PlantFacts> { it.records.isNotEmpty() }.thenBy(nullsLast()) { it.readyAt }
                 .thenBy {
                     (it.dryingForecast as? DryingForecast.Active)?.daysUntilPlateau ?: Int.MAX_VALUE
-                }
-        )
+                })
     }.flowOn(Dispatchers.Default)
 
     init {
@@ -252,19 +256,12 @@ class PlantsViewModel(
             combine(plants, _now) { facts, now ->
                 facts.map {
                     it.withTime(
-                        now,
-                        DryingConfig().epsilon
+                        now, DryingConfig().epsilon
                     )
                 }
+            }.collect { uiPlants ->
+                _uiState.update { current -> applyPlants(current, uiPlants) }
             }
-                .collect { uiPlants ->
-                    _uiState.update { current ->
-                        applyPlants(
-                            current,
-                            uiPlants
-                        )
-                    }
-                }
         }
     }
 
@@ -282,13 +279,11 @@ class PlantsViewModel(
         hoursLeft = readyAt?.let { hoursBetween(now, it) },
         isReadyForAction = readyAt?.let { !it.isAfter(now) } ?: false,
         plateauInDays = (dryingForecast as? DryingForecast.Active)?.expFit?.daysUntilPlateauAt(
-            now,
-            epsilon
+            now, epsilon
         ),
         moisture = moisture,
         prediction = predictWeight(history = activeMeasurements, at = now, DryingConfig()),
-        timeline
-    )
+        timeline)
 
     private fun hoursBetween(from: Instant, to: Instant) =
         java.time.Duration.between(from, to).toHours()
@@ -312,20 +307,52 @@ class PlantsViewModel(
             is PlantIntent.EditingMeasurement.Save -> saveMeasurementEdit()
             is PlantIntent.EditingName.Save -> saveEditingName()
             is PlantIntent.Overview.StartEditingPlantName -> startEditingPlantName(intent)
-            is PlantIntent.Details.OpenMeasurementHistory -> openMeasurementHistory()
-            is PlantIntent.Details.OpenWateringHistory -> openWateringHistory()
+//            is PlantIntent.Details.OpenMeasurementHistory -> openMeasurementHistory()
+//            is PlantIntent.Details.OpenWateringHistory -> openWateringHistory()
             is PlantIntent.Details.DeleteMeasurement -> removeMeasurement(intent.id)
             is PlantIntent.Details.CopyMonth -> copyMonth(intent.month)
             is PlantIntent.ExportCsv -> exportCsv(intent.uri)
             is PlantIntent.ImportCsv -> importCsv(intent.uri)
             is PlantIntent.Overview.Deletion.Request -> startDelete(intent.plantId)
             is PlantIntent.Overview.Deletion.Undo -> undoDelete()
-            is PlantIntent.Overview.SelectPlant -> if (_pendingDelete.value?.plantId != intent.plantId) reduce(intent)
+            is PlantIntent.Overview.SelectPlant -> if (_pendingDelete.value?.plantId != intent.plantId) reduce(
+                intent
+            )
+
             is PlantIntent.Pruning.Save -> savePruning()
             is PlantIntent.Repotting.Save -> saveRepotting()
             is PlantIntent.Overview.OpenAddPlant -> openAddPlant(intent)
             is PlantIntent.Refresh -> Unit
+            is PlantIntent.EditingWatering.Save -> saveWateringEdit()
+            is PlantIntent.Details.DeleteWatering -> removeWatering(intent.id)
             else -> reduce(intent)
+        }
+    }
+
+    private fun saveWateringEdit() {
+        val s = _uiState.value as? PlantState.PlantModal.HistoryModal.EditWatering ?: return
+        val plantId = s.parent.plant.id.value
+        val volumeMl = s.volumeInput.text.toString().toPositiveDoubleOrNull()
+
+        val newTs = s.timestamp.toEpochMilli()
+        val oldTs = s.originalTimestamp.toEpochMilli()
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    updateWatering(
+                        db = database,
+                        id = s.wateringId.value,
+                        plantId = plantId,
+                        oldTs = oldTs,
+                        newTs = newTs,
+                        volumeMl = volumeMl
+                    )
+                }
+            }.onSuccess {
+                reduce(PlantIntent.EditingWatering.Save)
+            }.onFailure {
+                _effects.send(PlantEffect.ShowMessage("Не вдалося зберегти зміни поливу"))
+            }
         }
     }
 
@@ -334,16 +361,15 @@ class PlantsViewModel(
 
         val weightText = s.weightInput.text.toString()
 
-        val weightAfter = weightText.takeIf { it.isNotBlank() }
-            ?.let { text ->
-                val parsed = text.replace(',', '.').toDoubleOrNull()
-                parsed?.takeIf { it > 0.0 } ?: return
-            }
+        val weightAfter = weightText.takeIf { it.isNotBlank() }?.let { text ->
+            val parsed = text.replace(',', '.').toDoubleOrNull()
+            parsed?.takeIf { it > 0.0 } ?: return
+        }
 
         val potMass = null
 
         val plantId = s.parent.focus.id.value
-        val ts = (s.customTimestamp ?: Instant.now()).toEpochMilli()
+        val ts = (s.customTimestamp ?: now()).toEpochMilli()
 
         val potName = "${s.parent.focus.name} pot"
 
@@ -359,20 +385,32 @@ class PlantsViewModel(
 
         closeModal()
     }
+
+    fun updateWatering(db: PlateauDatabase, id: Long, plantId: Long, oldTs: Long, newTs: Long, volumeMl: Double?) {
+        val q = db.plateauDatabaseQueries
+        q.transaction {
+            q.updateWateringTimestamp(newTs, volumeMl, id)
+            q.moveMeasurementAt(newTs, plantId, oldTs)
+        }
+    }
     private fun copyMonth(month: YearMonth) {
         val s = _uiState.value as? Plant ?: return
         val group = s.zipper.focus.records.find { it.month == month } ?: return
         _effects.trySend(
             PlantEffect.CopyToClipboard(
-                label = group.monthNameAndYearTitle,
-                text = group.toClipboardText()
+                label = group.monthNameAndYearTitle, text = group.toClipboardText()
             )
         )
     }
 
     private fun removeMeasurement(id: MeasurementId) {
         viewModelScope.launch(Dispatchers.IO) { deleteMeasurement(database, id.value) }
-        closeModal()
+    }
+
+    private fun removeWatering(id: WateringEventId) {
+        viewModelScope.launch(Dispatchers.IO) {
+            database.plateauDatabaseQueries.deleteWatering(id.value)
+        }
     }
 
     /** «Назад» только если сейчас открыта модалка; иначе Back увёл бы с экрана. */
@@ -418,8 +456,7 @@ class PlantsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val allSpecies = fetchAllSpecies(database).map { dbSpecies ->
                 com.zghonnyk.domain.Species(
-                    id = com.zghonnyk.domain.SpeciesId(dbSpecies.id),
-                    latinName = dbSpecies.name
+                    id = com.zghonnyk.domain.SpeciesId(dbSpecies.id), latinName = dbSpecies.name
                 )
             }
             reduce(PlantIntent.Loaded.EditingSpecies(allSpecies))
@@ -470,12 +507,11 @@ class PlantsViewModel(
         if (name.isEmpty()) return
         val speciesId = s.form.selectedSpecies?.id?.value
 
-        viewModelScope.launch(Dispatchers.IO) { insertNewPlant(
-            database,
-            name,
-            speciesId,
-            acquisitionDate = now().toEpochMilli()
-        ) }
+        viewModelScope.launch(Dispatchers.IO) {
+            insertNewPlant(
+                database, name, speciesId, acquisitionDate = now().toEpochMilli()
+            )
+        }
         reduce(PlantIntent.Creating.Save)
     }
 
@@ -505,17 +541,20 @@ class PlantsViewModel(
     }
 
     private fun saveMeasurementEdit() {
-        val s = _uiState.value as? PlantState.PlantModal.EditMeasurement ?: return
-        val weight = s.weightInput.text.toString().toPositiveDoubleOrNull() ?: return
+        val (measurementId, weightInput, timestamp) = when (val s = _uiState.value) {
+            is PlantState.PlantModal.EditMeasurement -> Triple(s.measurementId, s.weightInput, s.timestamp)
+            is PlantState.PlantModal.HistoryModal.EditMeasurement -> Triple(s.measurementId, s.weightInput, s.timestamp)
+            else -> return
+        }
+        val weight = weightInput.text.toString().toPositiveDoubleOrNull() ?: return
 
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                database.plateauDatabaseQueries.updateMeasurement(
-                    weightGrams = weight,
-                    id = s.measurementId.value
-                )
-            }
-            reduce(PlantIntent.EditingMeasurement.Save)
+                runCatching {
+                    updateMeasurement(database, measurementId.value, weight, timestamp.toEpochMilli())
+                }
+            }.onSuccess { reduce(PlantIntent.EditingMeasurement.Save) }
+                .onFailure { _effects.send(PlantEffect.ShowMessage("Не вдалося зберегти: на цей час вже є вимір")) }
         }
     }
 
@@ -539,59 +578,54 @@ class PlantsViewModel(
 
     private fun openMeasurementHistory() {
         val s = _uiState.value as? Plant ?: return
-        val plantId = s.focus.id
-        viewModelScope.launch(Dispatchers.IO) {
-            val measurements = fetchMeasurementsForPlant(database, plantId.value)
-            val dateFormatter =
-                DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
-
-            val elements = measurements.map { m ->
-                val formattedDate = Instant.ofEpochMilli(m.timestamp)
-                    .atZone(ZoneId.systemDefault())
-                    .format(dateFormatter)
-
-                val weightStr = if (m.weight_grams % 1.0 == 0.0) {
-                    "${m.weight_grams.toInt()} г"
-                } else {
-                    "${m.weight_grams} г"
-                }
-
-                com.zghonnyk.plateau.feature.main.ui.state.MeasurementUiModel(
-                    id = MeasurementId(m.id),
-                    formattedDate = formattedDate,
-                    formattedWeight = weightStr
-                )
-            }
-            // применится к ТЕКУЩЕМУ состоянию; если пользователь ушёл или свайпнул — игнор
-            reduce(PlantIntent.Loaded.MeasurementHistory(plantId, elements))
-        }
+        reloadMeasurementHistory(s.focus.id.value)
     }
 
     private fun openWateringHistory() {
         val s = _uiState.value as? Plant ?: return
-        val plantId = s.focus.id
+        reloadWateringHistory(s.focus.id.value)
+    }
+
+    private fun reloadMeasurementHistory(plantId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            val waterings = fetchWateringsForPlant(database, plantId.value)
-            val dateFormatter =
-                DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
+            val measurements = fetchMeasurementsForPlant(database, plantId)
+            val dateFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
+
+            val elements = measurements.map { m ->
+                val formattedDate = Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()).format(dateFormatter)
+                val weightStr = if (m.weight_grams % 1.0 == 0.0) "${m.weight_grams.toInt()} г" else "${m.weight_grams} г"
+
+                com.zghonnyk.plateau.feature.main.ui.state.MeasurementUiModel(
+                    id = MeasurementId(m.id),
+                    formattedDate = formattedDate,
+                    formattedWeight = weightStr,
+                    timestamp = Instant.ofEpochMilli(m.timestamp)
+                )
+            }
+            reduce(PlantIntent.Loaded.MeasurementHistory(PlantId(plantId), elements))
+        }
+    }
+
+    private fun reloadWateringHistory(plantId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val waterings = fetchWateringsForPlant(database, plantId)
+            val dateFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
 
             val elements = waterings.map { w ->
-                val formattedDate = Instant.ofEpochMilli(w.timestamp)
-                    .atZone(ZoneId.systemDefault())
-                    .format(dateFormatter)
-
+                val formattedDate = Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault()).format(dateFormatter)
                 val volumeStr = when (val v = w.water_volume_ml) {
                     null -> "об'єм не вказано"
                     else -> if (v.rem(1.0) == 0.0) "${v.toInt()} мл" else "$v мл"
                 }
 
                 com.zghonnyk.plateau.feature.main.ui.state.WateringUiModel(
-                    id = com.zghonnyk.domain.WateringEventId(w.id),
+                    id = WateringEventId(w.id),
                     formattedDate = formattedDate,
-                    formattedVolume = volumeStr
+                    formattedVolume = volumeStr,
+                    timestamp = Instant.ofEpochMilli(w.timestamp)
                 )
             }
-            reduce(PlantIntent.Loaded.WateringHistory(plantId, elements))
+            reduce(PlantIntent.Loaded.WateringHistory(PlantId(plantId), elements))
         }
     }
 

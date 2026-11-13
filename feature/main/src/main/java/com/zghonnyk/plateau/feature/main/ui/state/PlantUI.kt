@@ -48,7 +48,7 @@ data class PlantUi(
     val plateauInDays: Int?,
     val moisture: MoistureReading?,
     val prediction: Prediction?,
-    val timeline: List<TimelineEntry>
+    val timeline: List<TimelineEntry>,
 
 )
 
@@ -64,7 +64,8 @@ interface HistoryUIModel {
 data class MeasurementUiModel(
     val id: MeasurementId,
     val formattedDate: String,
-    val formattedWeight: String
+    val formattedWeight: String,
+    val timestamp: Instant,
 ) : HistoryUIModel {
     override val date: String get() = formattedDate
     override val usefulData: String get() = formattedWeight
@@ -74,7 +75,8 @@ data class MeasurementUiModel(
 data class WateringUiModel(
     val id: WateringEventId,
     val formattedDate: String,
-    val formattedVolume: String
+    val formattedVolume: String,
+    val timestamp: Instant,
 ) : HistoryUIModel {
     override val date: String get() = formattedDate
     override val usefulData: String get() = formattedVolume
@@ -92,7 +94,8 @@ data class RecordUiModel(
     val id: MeasurementId,
     val dayOfMonthAndTime: String,
     val weight: String,
-    val delta: String
+    val delta: String,
+    val timestamp: Instant
 )
 data class Moisture(
     val percent: Double,

@@ -14,10 +14,9 @@ fun PlateauTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    MaterialTheme(
-        colorScheme = colorScheme(darkTheme, context), typography = Typography, content = content
+    MaterialTheme(dynamicColorScheme(darkTheme, context), typography = Typography, content = content
     )
 }
 
-fun colorScheme(darkTheme: Boolean, context: Context) =
+fun dynamicColorScheme(darkTheme: Boolean, context: Context) =
     if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

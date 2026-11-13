@@ -27,7 +27,8 @@ fun List<MeasurementWithRate>.toMonthGroupUiModels(
                         weight = "%.0f g".format(locale, item.weightGrams),
                         delta = item.deltaGramsPerDay
                             ?.let { "%.1f g/d".format(locale, it) }
-                            ?: "—"
+                            ?: "—",
+                        timestamp = item.timestamp
                     )
                 }
             )

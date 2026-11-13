@@ -115,80 +115,6 @@ CREATE TABLE soil_addition_events (
 
 CREATE INDEX idx_soil_addition_soil ON soil_addition_events(soil_id);
 
-INSERT INTO species (id, name) VALUES
-(1, 'Gasteraloe'),
-(2, 'Zamioculcas zamiifolia'),
-(3, 'Sansevieria parva'),
-(4, 'Haworthia'),
-(5, 'Capsicum annuum');
-
-INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
-(1, 1790316000000, 1431.0),
-(1, 1790402400000, 1422.0),
-(1, 1790488800000, 1412.0),
-(1, 1790575200000, 1404.0),
-(1, 1790668800000, 1395.0),
-(1, 1790744580000, 1388.0),
-(1, 1790837400000, 1380.0),
-(1, 1790922300000, 1371.0),
-(1, 1791010800000, 1363.0),
-(1, 1791097200000, 1356.0),
-(1, 1791181800000, 1350.0),
-(1, 1791269280000, 1343.0),
-(1, 1791354780000, 1338.0),
-(1, 1791440700000, 1333.0),
-(1, 1791529440000, 1328.0);
-
-INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
-(2, 1791358200000, 4150.0),
-(2, 1791440760000, 4130.0),
-(2, 1791529140000, 4114.0);
-
-INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
-(3, 1790316000000, 1052.0),
-(3, 1790402400000, 1043.0),
-(3, 1790488800000, 1033.0),
-(3, 1790575200000, 1026.0),
-(3, 1790668800000, 1018.0),
-(3, 1790744580000, 1008.0),
-(3, 1790837400000, 999.0),
-(3, 1790922300000, 990.0),
-(3, 1791010800000, 982.0),
-(3, 1791097200000, 974.0),
-(3, 1791181800000, 965.0),
-(3, 1791269100000, 959.0),
-(3, 1791354600000, 953.0);
-
-INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
-(4, 1790837400000, 480.0),
-(4, 1790922300000, 476.0),
-(4, 1791010800000, 472.0),
-(4, 1791097200000, 469.0),
-(4, 1791181800000, 466.0),
-(4, 1791269100000, 463.0),
-(4, 1791354600000, 461.0);
-
-INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
-(5, 1791111180000, 1690.0),
-(5, 1791142500000, 1675.0),
-(5, 1791182280000, 1664.0),
-(5, 1791269280000, 1620.0),
-(5, 1791354600000, 1591.0),
-(5, 1791440580000, 1563.0),
-(5, 1791529740000, 1537.0);
-
-INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
-(6, 1791354600000, 882.0),
-(6, 1791358200000, 1039.0),
-(6, 1791441000000, 1023.0),
-(6, 1791530640000, 1009.0);
-
-INSERT INTO measurements (plant_id, timestamp, weight_grams) VALUES
-(7, 1791354600000, 397.0),
-(7, 1791358200000, 455.0),
-(7, 1791441000000, 449.0),
-(7, 1791530760000, 445.0);
-
 selectAllSpecies:
 SELECT * FROM species ORDER BY name ASC;
 
@@ -282,3 +208,68 @@ INSERT INTO soil_addition_events(plant_id, timestamp, added_grams, soil_id, note
 
 deleteSoilAddition:
 DELETE FROM soil_addition_events WHERE id = ?;
+
+insertRemoval:
+INSERT INTO mass_removal_events(plant_id, timestamp, removed_grams, event_type, notes)
+VALUES (?, ?, ?, ?, ?);
+
+insertRoom:
+INSERT INTO rooms(name, window_orientation)
+VALUES (?, ?);
+
+insertSoil:
+INSERT INTO soil_types(name, acidity_ph, components_description)
+VALUES (?, ?, ?);
+
+selectAllSoilTypes:
+SELECT name, id FROM soil_types;
+
+selectAllRooms:
+SELECT name, id FROM rooms;
+
+selectAllWateringSessions:
+SELECT plant_id, timestamp FROM watering_sessions;
+
+selectAllMassRemovalEvents:
+SELECT plant_id, timestamp FROM mass_removal_events;
+
+selectAllSoilAdditionEvents:
+SELECT plant_id, timestamp FROM soil_addition_events;
+
+selectAllRepottingEvents:
+SELECT plant_id, timestamp FROM repotting_events;
+
+insertPotFull:
+INSERT INTO pots(name, empty_mass_grams, material, diameter_cm, volume_ml, pot_type)
+VALUES (?, ?, ?, ?, ?, ?);
+
+insertSpeciesFull:
+INSERT INTO species(name, family, common_name, soil_id, dry_down_pct, extra_days, target_pot_type, watering_method, max_interval_days)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertPlantFull:
+INSERT INTO plants(name, species_id, room_id, pot_id, notes, acquisition_date, archived_at, measurement_noise_grams)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+insertMeasurementFull:
+INSERT INTO measurements(plant_id, timestamp, weight_grams, excluded)
+VALUES (?, ?, ?, ?);
+
+insertRepottingFull:
+INSERT INTO repotting_events(plant_id, timestamp, new_pot_id, soil_id, reason)
+VALUES (?, ?, ?, ?, ?);
+
+updateWatering:
+UPDATE watering_sessions SET water_volume_ml = :volumeMl WHERE id = :id;
+
+deleteWatering:
+DELETE FROM watering_sessions WHERE id = ?;
+
+updateWateringTimestamp:
+UPDATE watering_sessions SET timestamp = :new, water_volume_ml = :volumeMl WHERE id = :id;
+
+moveMeasurementAt:
+UPDATE measurements SET timestamp = :new WHERE plant_id = :plantId AND timestamp = :old;
+
+updateMeasurementWeightAndTime:
+UPDATE measurements SET weight_grams = :weightGrams, timestamp = :timestamp WHERE id = :id;

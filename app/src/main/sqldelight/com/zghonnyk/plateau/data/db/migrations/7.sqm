@@ -14,5 +14,5 @@ ALTER TABLE plant_photos ADD COLUMN caption TEXT;
 UPDATE plants
 SET acquisition_date = COALESCE(
     (SELECT MIN(timestamp) FROM measurements WHERE plant_id = plants.id),
-    (unixepoch() * 1000) -- Фолбэк на текущее время (в мс), если у растения еще нет замеров
+    (strftime('%s', 'now') * 1000)
 );

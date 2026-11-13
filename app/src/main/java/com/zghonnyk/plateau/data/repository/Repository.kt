@@ -4,7 +4,7 @@ import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import com.zghonnyk.plateau.data.db.PlateauDatabase
 import com.zghonnyk.plateau.data.db.Watering_sessions
-import com.zghonnyk.plateau.domain.CsvRow
+import com.zghonnyk.plateau.domain.CsvRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
@@ -12,64 +12,37 @@ import java.time.Instant
 data class ImportSummary(
     val plantsAdded: Int,
     val measurementsAdded: Int,
+    val wateringsAdded: Int,
+    val repottingsAdded: Int,
     val measurementsSkipped: Int
 )
 
 fun fetchAllMeasurements(db: PlateauDatabase) =
     db.plateauDatabaseQueries.selectAllMeasurements().executeAsList()
 
-fun exportRows(db: PlateauDatabase): List<CsvRow> {
+fun exportRows(db: PlateauDatabase): List<CsvRecord> {
     val plants = fetchPlantsWithSpecies(db).sortedBy { it.id }
     val byPlant = fetchAllMeasurements(db).groupBy { it.plant_id }
     return plants.flatMap { p ->
         val ms = byPlant[p.id].orEmpty()
-        if (ms.isEmpty()) listOf(CsvRow(p.plant_name, p.species_name, null, null))
-        else ms.map {
-            CsvRow(
-                p.plant_name,
-                p.species_name,
-                Instant.ofEpochMilli(it.timestamp),
-                it.weight_grams
-            )
-        }
-    }
-}
-
-fun importRows(db: PlateauDatabase, rows: List<CsvRow>): ImportSummary {
-    val q = db.plateauDatabaseQueries
-    return db.transactionWithResult {
-        val species = q.selectAllSpecies().executeAsList()
-            .associateBy({ it.name }, { it.id }).toMutableMap()
-        val plants = q.selectAllPlantsWithSpecies().executeAsList()
-            .associateBy({ it.plant_name to it.species_id }, { it.id }).toMutableMap()
-        val seen = q.selectAllMeasurements().executeAsList()
-            .mapTo(HashSet()) { it.plant_id to it.timestamp }
-
-        var plantsAdded = 0
-        var added = 0
-        var skipped = 0
-
-        for ((plant, species1, timestamp, weightGrams) in rows) {
-            val speciesId = species1?.let { name ->
-                species.getOrPut(name) { q.insertSpecies(name); q.lastInsertRowId().executeAsOne() }
-            }
-            val plantId = plants.getOrPut(plant to speciesId) {
-                q.insertPlant(
-                    plant,
-                    speciesId,
-                    acquisition_date = timestamp?.toEpochMilli() ?: System.currentTimeMillis()
+        if (ms.isEmpty()) {
+            listOf(
+                CsvRecord(
+                    "plant", 0, mapOf("plant" to p.plant_name, "species" to (p.species_name ?: ""))
                 )
-                plantsAdded++
-                q.lastInsertRowId().executeAsOne()
-            }
-            if (timestamp != null && weightGrams != null) {
-                val ts = timestamp.toEpochMilli()
-                if (seen.add(plantId to ts)) {
-                    q.insertMeasurement(plantId, ts, weightGrams); added++
-                } else skipped++
+            )
+        } else {
+            ms.map {
+                CsvRecord(
+                    "measurement", 0, mapOf(
+                        "plant" to p.plant_name,
+                        "species" to (p.species_name ?: ""),
+                        "timestamp" to Instant.ofEpochMilli(it.timestamp).toString(),
+                        "weight_grams" to it.weight_grams.toString()
+                    )
+                )
             }
         }
-        ImportSummary(plantsAdded, added, skipped)
     }
 }
 
@@ -84,9 +57,7 @@ fun fetchMeasurementsForPlant(db: PlateauDatabase, plantId: Long) =
 
 fun insertNewPlant(db: PlateauDatabase, name: String, speciesId: Long?, acquisitionDate: Long) =
     db.plateauDatabaseQueries.insertPlant(
-        name,
-        speciesId,
-        acquisition_date = acquisitionDate
+        name, speciesId, acquisition_date = acquisitionDate
     )
 
 
@@ -94,43 +65,32 @@ fun insertNewMeasurement(db: PlateauDatabase, plantId: Long, timestamp: Long, we
     db.plateauDatabaseQueries.insertMeasurement(plantId, timestamp, weightGrams)
 
 
-fun removePlant(db: PlateauDatabase, plantId: Long) =
-    db.plateauDatabaseQueries.deletePlant(plantId)
+fun removePlant(db: PlateauDatabase, plantId: Long) = db.plateauDatabaseQueries.deletePlant(plantId)
 
-fun deleteMeasurement(db: PlateauDatabase, id: Long) = db.plateauDatabaseQueries.deleteMeasurement(id)
+fun deleteMeasurement(db: PlateauDatabase, id: Long) =
+    db.plateauDatabaseQueries.deleteMeasurement(id)
 
 fun observePlantsWithSpecies(db: PlateauDatabase) =
-    db.plateauDatabaseQueries.selectAllPlantsWithSpecies()
-        .asFlow()
-        .mapToList(Dispatchers.IO)
+    db.plateauDatabaseQueries.selectAllPlantsWithSpecies().asFlow().mapToList(Dispatchers.IO)
 
 fun observeAllMeasurements(db: PlateauDatabase) =
-    db.plateauDatabaseQueries.selectAllMeasurements()
-        .asFlow()
-        .mapToList(Dispatchers.IO)
+    db.plateauDatabaseQueries.selectAllMeasurements().asFlow().mapToList(Dispatchers.IO)
 
-fun observeAllWaterings(db: PlateauDatabase) = db.plateauDatabaseQueries.selectAllWatering()
-    .asFlow()
-    .mapToList(Dispatchers.IO)
+fun observeAllWaterings(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectAllWatering().asFlow().mapToList(Dispatchers.IO)
 
 fun updatePlant(database: PlateauDatabase, id: Long, name: String, speciesId: Long?) {
     database.plateauDatabaseQueries.updatePlant(name, speciesId, id)
 }
 
-fun updateMeasurement(database: PlateauDatabase, id: Long, weightGrams: Double) {
-    database.plateauDatabaseQueries.updateMeasurement(
-        weightGrams = weightGrams,
-        id = id
-    )
-}
+fun updateMeasurement(db: PlateauDatabase, id: Long, weightGrams: Double, timestamp: Long) =
+    db.plateauDatabaseQueries.updateMeasurementWeightAndTime(weightGrams, timestamp, id)
 
 fun observeSpecies(database: PlateauDatabase) =
     database.plateauDatabaseQueries.selectAllSpecies().asFlow().mapToList(Dispatchers.IO)
 
 fun observeAllWatering(database: PlateauDatabase): Flow<List<Watering_sessions>> =
-    database.plateauDatabaseQueries.selectAllWatering()
-        .asFlow()
-        .mapToList(Dispatchers.IO)
+    database.plateauDatabaseQueries.selectAllWatering().asFlow().mapToList(Dispatchers.IO)
 
 fun insertNewWatering(
     database: PlateauDatabase,
@@ -182,7 +142,7 @@ fun insertNewRepotting(
 }
 
 fun observeAllRepottings(db: PlateauDatabase) =
-   db.plateauDatabaseQueries.selectAllRepottings().asFlow().mapToList(Dispatchers.IO)
+    db.plateauDatabaseQueries.selectAllRepottings().asFlow().mapToList(Dispatchers.IO)
 
 fun observeAllSoilAdditions(db: PlateauDatabase) =
     db.plateauDatabaseQueries.selectAllSoilAdditions().asFlow().mapToList(Dispatchers.IO)
@@ -204,3 +164,6 @@ fun insertNewSoilAddition(
 
 fun deleteSoilAddition(db: PlateauDatabase, id: Long) =
     db.plateauDatabaseQueries.deleteSoilAddition(id)
+
+fun observeAllPots(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectAllPots().asFlow().mapToList(Dispatchers.IO)

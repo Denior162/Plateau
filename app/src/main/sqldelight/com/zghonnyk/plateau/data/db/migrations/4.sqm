@@ -32,7 +32,7 @@ ALTER TABLE plants ADD COLUMN notes TEXT;
 
 ALTER TABLE pots ADD COLUMN material TEXT;
 ALTER TABLE pots ADD COLUMN diameter_cm REAL;
-ALTER TABLE pots ADD COLUMN volume_liters REAL;
+ALTER TABLE pots ADD COLUMN volume_ml REAL;
 
 ALTER TABLE prunings RENAME TO mass_removal_events;
 ALTER TABLE mass_removal_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'pruning';

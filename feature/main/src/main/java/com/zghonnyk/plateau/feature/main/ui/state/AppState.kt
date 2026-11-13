@@ -5,6 +5,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Immutable
 import com.zghonnyk.domain.MeasurementId
 import com.zghonnyk.domain.PlantId
+import com.zghonnyk.domain.WateringEventId
 import com.zghonnyk.vector_zipper.VectorZipper
 import java.time.Instant
 import java.time.YearMonth
@@ -12,19 +13,12 @@ import com.zghonnyk.domain.Species as DomainSpecies
 
 sealed interface PlantState {
     data object DBUninitialized : PlantState
-
-    /** Узел дерева. `parent` — контекст Юэ; у корня (Overview) его нет. */
     sealed interface Active : PlantState {
         val parent: Active?
     }
 
-    /** Полноэкранный узел. */
     sealed interface Screen : Active
 
-    /**
-     * Диалог / инлайн-редактирование поверх экрана.
-     * Родитель — только Screen, поэтому «модал на модале» непредставим.
-     */
     sealed interface Modal : Active {
         override val parent: Screen
     }
@@ -49,7 +43,7 @@ sealed interface PlantState {
         override val parent: Overview,
         val form: AddPlantForm = AddPlantForm(),
         val speciesList: List<DomainSpecies>,
-        ) : Screen
+    ) : Screen
 
     @Immutable
     data class Species(
@@ -59,10 +53,6 @@ sealed interface PlantState {
 
     sealed interface Details : Screen {
 
-        /**
-         * Overview с фокусом на одном растении. `parent` не хранится, а вычисляется
-         * («подъём» зиппера), поэтому список растений существует в единственном экземпляре.
-         */
         @Immutable
         data class Plant(val zipper: VectorZipper<PlantUi>) : Details {
             val focus: PlantUi get() = zipper.focus // ← единственное место, зависящее от API VectorZipper
@@ -95,6 +85,28 @@ sealed interface PlantState {
 
     sealed interface PlantModal : Modal {
         override val parent: Details.Plant
+
+        sealed interface HistoryModal : Modal {
+            override val parent: Details.History
+
+            data class EditMeasurement(
+                override val parent: Details.History,
+                val measurementId: MeasurementId,
+                val weightInput: TextFieldState,
+                val originalTimestamp: Instant,
+                val timestamp: Instant,
+                val isDateTimePickerOpen: Boolean = false
+            ) : HistoryModal
+
+            data class EditWatering(
+                override val parent: Details.History,
+                val wateringId: WateringEventId,
+                val volumeInput: TextFieldState,
+                val originalTimestamp: Instant,
+                val timestamp: Instant,
+                val isDateTimePickerOpen: Boolean = false
+            ) : HistoryModal
+        }
 
         @Immutable
         data class AddMeasurement(
@@ -129,11 +141,12 @@ sealed interface PlantState {
             val isDateTimePickerOpen: Boolean = false,
         ) : PlantModal
 
-        @Immutable
         data class EditMeasurement(
             override val parent: Details.Plant,
             val measurementId: MeasurementId,
             val weightInput: TextFieldState,
+            val timestamp: Instant,
+            val isDateTimePickerOpen: Boolean = false,
         ) : PlantModal
 
         @Immutable
@@ -161,8 +174,13 @@ sealed interface PlantIntent {
     sealed interface Loaded : PlantIntent {
         data class Species(val species: List<DomainSpecies>) : Loaded
         data class EditingSpecies(val species: List<DomainSpecies>) : Loaded
-        data class MeasurementHistory(val plantId: PlantId, val elements: List<MeasurementUiModel>) : Loaded
-        data class WateringHistory(val plantId: PlantId, val elements: List<WateringUiModel>) : Loaded
+        data class MeasurementHistory(
+            val plantId: PlantId, val elements: List<MeasurementUiModel>
+        ) : Loaded
+
+        data class WateringHistory(val plantId: PlantId, val elements: List<WateringUiModel>) :
+            Loaded
+
         data class CreatingSpecies(val species: List<DomainSpecies>) : Loaded
     }
 
@@ -201,13 +219,26 @@ sealed interface PlantIntent {
         data object OpenRepottingDialog : Details
         data object OpenAddMeasurement : Details
         data object OpenWateringDialog : Details
-        data object OpenMeasurementHistory : Details   // данные грузит VM → Loaded.MeasurementHistory
-        data object OpenWateringHistory : Details      // → Loaded.WateringHistory
+        data object OpenMeasurementHistory : Details
+        data object OpenWateringHistory : Details
 
-        /** Имя и вид берутся из фокуса зиппера, а не приходят из UI. */
         data object StartEditingPlant : Details
-        data class StartEditingMeasurement(val measurementId: Long, val currentWeightString: String) : Details
+
+        data class StartEditingMeasurement(
+            val id: MeasurementId,
+            val currentWeightString: String,
+            val timestamp: Instant,
+        ) : Details
+
+        data class StartEditingWatering(
+            val wateringEventId: WateringEventId,
+            val currentMl: String,
+            val timestamp: Instant,
+        ) : Details
+
         data class DeleteMeasurement(val id: MeasurementId) : Details
+        data class DeleteWatering(val id: WateringEventId) : Details
+
     }
 
     // PlantState.PlantModal.AddMeasurement
@@ -235,6 +266,16 @@ sealed interface PlantIntent {
 
     sealed interface EditingMeasurement : PlantIntent {
         data object Save : EditingMeasurement
+        data object OpenDateTimePicker : EditingMeasurement
+        data object CloseDateTimePicker : EditingMeasurement
+        data class SetTimestamp(val timestamp: Instant) : EditingMeasurement
+    }
+
+    sealed interface EditingWatering : PlantIntent {
+        data object Save : EditingWatering
+        data object OpenDateTimePicker : EditingWatering
+        data object CloseDateTimePicker : EditingWatering
+        data class SetTimestamp(val timestamp: Instant) : EditingWatering
     }
 
     sealed interface Pruning : PlantIntent {
