@@ -93,9 +93,6 @@ fun AppRoot(
     }
 
     is PlantState.Active -> ActiveHost(
-        median = median,
-        speciesStatsFlow = speciesStatsFlow,
-        speciesList = speciesList,
         onGetEvaporatedForSpecies = onGetEvaporatedForSpecies,
         onGetPlantsWithMinWeight = onGetPlantsWithMinWeight,
         state = state,
@@ -107,9 +104,6 @@ fun AppRoot(
 
 @Composable
 private fun ActiveHost(
-    median: Flow<Double>,
-    speciesStatsFlow: Flow<List<SpeciesMeasurementStats>>,
-    speciesList: List<Species>,
     onGetEvaporatedForSpecies: (Long) -> Flow<Double>,
     onGetPlantsWithMinWeight: (Double) -> Flow<List<PlantPeakWeight>>,
     state: PlantState.Active,

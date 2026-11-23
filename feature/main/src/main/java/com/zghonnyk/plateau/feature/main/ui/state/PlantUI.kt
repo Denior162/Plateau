@@ -29,7 +29,8 @@ data class PlantFacts(
     val activeMeasurements: List<Measurement>,
     val readyAt: Instant?,
     val moisture: MoistureReading?,
-    val timeline: List<TimelineEntry>
+    val timeline: List<TimelineEntry>,
+    val plantPhoto: String?
 )
 
 data class PlantUi(
@@ -49,7 +50,7 @@ data class PlantUi(
     val moisture: MoistureReading?,
     val prediction: Prediction?,
     val timeline: List<TimelineEntry>,
-
+    val plantPhoto: String?
 )
 
 @Immutable

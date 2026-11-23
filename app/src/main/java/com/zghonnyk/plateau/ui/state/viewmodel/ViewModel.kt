@@ -34,7 +34,6 @@ import com.zghonnyk.domain.predictWeight
 import com.zghonnyk.domain.splitIntoPhases
 import com.zghonnyk.domain.timeline
 import com.zghonnyk.domain.withRates
-import com.zghonnyk.plateau.feature.main.R
 import com.zghonnyk.plateau.PlateauApplication
 import com.zghonnyk.plateau.data.db.PlateauDatabase
 import com.zghonnyk.plateau.data.repository.PotChoice
@@ -48,6 +47,7 @@ import com.zghonnyk.plateau.data.repository.insertNewPruning
 import com.zghonnyk.plateau.data.repository.insertNewRepotting
 import com.zghonnyk.plateau.data.repository.insertNewWatering
 import com.zghonnyk.plateau.data.repository.observeAllMeasurements
+import com.zghonnyk.plateau.data.repository.observeAllPhotos
 import com.zghonnyk.plateau.data.repository.observeAllPrunings
 import com.zghonnyk.plateau.data.repository.observeAllRepottings
 import com.zghonnyk.plateau.data.repository.observeAllWaterings
@@ -65,6 +65,7 @@ import com.zghonnyk.plateau.di.PlantDeps
 import com.zghonnyk.plateau.domain.importBackup
 import com.zghonnyk.plateau.domain.parseBackup
 import com.zghonnyk.plateau.domain.toCsv
+import com.zghonnyk.plateau.feature.main.R
 import com.zghonnyk.plateau.feature.main.ui.components.ChartPoint
 import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
 import com.zghonnyk.plateau.feature.main.ui.extentions.toMonthGroupUiModels
@@ -114,19 +115,18 @@ class PlantsViewModel(
     val uiState: StateFlow<PlantState> = _uiState.asStateFlow()
 
     sealed interface UiText {
-    data class DynamicString(val value: String) : UiText
-    data class Resource(
-        val resId: Int,
-        val args: List<Any> = emptyList()
-    ) : UiText {
-        constructor(resId: Int, vararg args: Any) : this(resId, args.toList())
-    }
+        data class DynamicString(val value: String) : UiText
+        data class Resource(
+            val resId: Int, val args: List<Any> = emptyList()
+        ) : UiText {
+            constructor(resId: Int, vararg args: Any) : this(resId, args.toList())
+        }
 
-    fun asString(context: android.content.Context): String = when (this) {
-        is DynamicString -> value
-        is Resource -> context.getString(resId, *args.toTypedArray())
+        fun asString(context: android.content.Context): String = when (this) {
+            is DynamicString -> value
+            is Resource -> context.getString(resId, *args.toTypedArray())
+        }
     }
-}
 
     sealed interface PlantEffect {
         data class ShowMessage(val text: UiText) : PlantEffect
@@ -148,7 +148,11 @@ class PlantsViewModel(
     private fun exportCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             val msg: UiText = try {
-                val out = deps.openOut(uri) ?: return@launch _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_cannot_open_file)))
+                val out = deps.openOut(uri) ?: return@launch _effects.send(
+                    PlantEffect.ShowMessage(
+                        UiText.Resource(R.string.error_cannot_open_file)
+                    )
+                )
                 out.bufferedWriter(Charsets.UTF_8).use { it.write(toCsv(exportRows(database))) }
                 UiText.Resource(R.string.export_ready)
             } catch (e: Exception) {
@@ -161,12 +165,17 @@ class PlantsViewModel(
     fun importCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             val msg: UiText = try {
-                val input = deps.openIn(uri) ?: return@launch _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_cannot_open_file)))
+                val input = deps.openIn(uri) ?: return@launch _effects.send(
+                    PlantEffect.ShowMessage(
+                        UiText.Resource(R.string.error_cannot_open_file)
+                    )
+                )
                 val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 val summary = importBackup(database, parseBackup(text))
                 UiText.Resource(
-                    R.string.import_success,
-                    listOf(summary.plantsAdded, summary.measurementsAdded, summary.measurementsSkipped)
+                    R.string.import_success, listOf(
+                        summary.plantsAdded, summary.measurementsAdded, summary.measurementsSkipped
+                    )
                 )
             } catch (e: Exception) {
                 UiText.Resource(R.string.import_error, listOf(e.message.orEmpty()))
@@ -177,6 +186,7 @@ class PlantsViewModel(
 
     fun getGlobalMedian(): Flow<Double> =
         observeGlobalMedianEvaporation(database).flowOn(Dispatchers.IO)
+
     fun getSpeciesMeasurementStats(): Flow<List<SpeciesMeasurementStats>> =
         observeSpeciesMeasurementStats(database).flowOn(Dispatchers.IO)
 
@@ -202,13 +212,18 @@ class PlantsViewModel(
         }
     }
 
-    private val plants: Flow<List<PlantFacts>> = combine(
+    private val plantsWithPhotos = combine(
         observePlantsWithSpecies(database),
+        observeAllPhotos(database),
+    ) { plants, photos -> plants to photos.groupBy { it.plant_id } }
+
+    private val plants: Flow<List<PlantFacts>> = combine(
+        plantsWithPhotos,
         observeAllMeasurements(database),
         observeAllWaterings(database),
         observeAllPrunings(database),
         observeAllRepottings(database),
-    ) { rawPlants, allMeasurements, allWaterings, allPrunings, allRepottings ->
+    ) { (rawPlants, photosByPlant), allMeasurements, allWaterings, allPrunings, allRepottings ->
         val measurementsByPlant = allMeasurements.groupBy { it.plant_id }
         val wateringByPlant = allWaterings.groupBy { it.plant_id }
         val pruningByPlant = allPrunings.groupBy { it.plant_id }
@@ -256,7 +271,9 @@ class PlantsViewModel(
             val analyzedPhases = phases.map { phase ->
                 AnalyzedPhase(phase, analyzeCached(phase.measurements))
             }
-            val pot: Tare = repottingsByPlant[plant.id]?.lastOrNull()?.empty_mass_grams?.let { Tare.Known(it) } ?: Tare.Unknown
+            val pot: Tare =
+                repottingsByPlant[plant.id]?.lastOrNull()?.empty_mass_grams?.let { Tare.Known(it) }
+                    ?: Tare.Unknown
             val currentAnalyzed = analyzedPhases.lastOrNull()
             val activeMeasurements = currentAnalyzed?.phase?.measurements.orEmpty()
             val forecast = currentAnalyzed?.forecast ?: DryingForecast.InsufficientData(null)
@@ -269,6 +286,8 @@ class PlantsViewModel(
                 emptyList()
             }
 
+            val plantPhoto = photosByPlant[plant.id]?.maxByOrNull { it.timestamp }?.file_path
+            
             PlantFacts(
                 id = plantId,
                 name = plant.plant_name,
@@ -285,7 +304,8 @@ class PlantsViewModel(
                 readyAt = readyAt(lastWeighedAt, forecast.recommendedInterval),
 
                 analyzedPhases.latestMoisture(pot),
-                timeline(phases, events)
+                timeline(phases, events),
+                plantPhoto = plantPhoto
             )
         }
             .sortedWith(compareBy<PlantFacts> { it.records.isNotEmpty() }.thenBy(nullsLast()) { it.readyAt }
@@ -326,7 +346,9 @@ class PlantsViewModel(
         ),
         moisture = moisture,
         prediction = predictWeight(history = activeMeasurements, at = now, DryingConfig()),
-        timeline)
+        timeline,
+        plantPhoto
+    )
 
     private fun hoursBetween(from: Instant, to: Instant) =
         java.time.Duration.between(from, to).toHours()
@@ -377,21 +399,22 @@ class PlantsViewModel(
         block: () -> Unit,
     ) {
         viewModelScope.launch {
-            runCatching { withContext(Dispatchers.IO) { block() } }
-                .onSuccess { onSuccess() }
+            runCatching { withContext(Dispatchers.IO) { block() } }.onSuccess { onSuccess() }
                 .onFailure { _effects.send(PlantEffect.ShowMessage(errorText)) }
         }
     }
 
     private fun addPhoto(uri: Uri) {
         viewModelScope.launch {
-            runCatching { deps.copyPhoto(uri) }
-                .onSuccess { path ->
+            runCatching { deps.copyPhoto(uri) }.onSuccess { path ->
                     Log.d("Photo", "copied: $path")
-                    (_uiState.value as? PlantState.Creating)?.form?.photoPath?.let { deps.deletePhoto(it) }
+                    (_uiState.value as? PlantState.Creating)?.form?.photoPath?.let {
+                        deps.deletePhoto(
+                            it
+                        )
+                    }
                     reduce(PlantIntent.Creating.AddPhotoCopied(path))
-                }
-                .onFailure {
+                }.onFailure {
                     Log.e("Photo", "failed to copy photo", it)
                     _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_failed_to_add_photo)))
                 }
@@ -414,6 +437,7 @@ class PlantsViewModel(
         }
         reduce(PlantIntent.Creating.Save)
     }
+
     private fun saveWateringEdit() {
         val s = _uiState.value as? PlantState.PlantModal.HistoryModal.EditWatering ?: return
         val plantId = s.parent.plant.id.value
@@ -471,13 +495,16 @@ class PlantsViewModel(
         closeModal()
     }
 
-    fun updateWatering(db: PlateauDatabase, id: Long, plantId: Long, oldTs: Long, newTs: Long, volumeMl: Double?) {
+    fun updateWatering(
+        db: PlateauDatabase, id: Long, plantId: Long, oldTs: Long, newTs: Long, volumeMl: Double?
+    ) {
         val q = db.plateauDatabaseQueries
         q.transaction {
             q.updateWateringTimestamp(newTs, volumeMl, id)
             q.moveMeasurementAt(newTs, plantId, oldTs)
         }
     }
+
     private fun copyMonth(month: YearMonth) {
         val s = _uiState.value as? Plant ?: return
         val group = s.zipper.focus.records.find { it.month == month } ?: return
@@ -613,8 +640,14 @@ class PlantsViewModel(
 
     private fun saveMeasurementEdit() {
         val (measurementId, weightInput, timestamp) = when (val s = _uiState.value) {
-            is PlantState.PlantModal.EditMeasurement -> Triple(s.measurementId, s.weightInput, s.timestamp)
-            is PlantState.PlantModal.HistoryModal.EditMeasurement -> Triple(s.measurementId, s.weightInput, s.timestamp)
+            is PlantState.PlantModal.EditMeasurement -> Triple(
+                s.measurementId, s.weightInput, s.timestamp
+            )
+
+            is PlantState.PlantModal.HistoryModal.EditMeasurement -> Triple(
+                s.measurementId, s.weightInput, s.timestamp
+            )
+
             else -> return
         }
         val weight = weightInput.text.toString().toPositiveDoubleOrNull() ?: return
@@ -622,7 +655,9 @@ class PlantsViewModel(
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    updateMeasurement(database, measurementId.value, weight, timestamp.toEpochMilli())
+                    updateMeasurement(
+                        database, measurementId.value, weight, timestamp.toEpochMilli()
+                    )
                 }
             }.onSuccess { reduce(PlantIntent.EditingMeasurement.Save) }
                 .onFailure { _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_measurement_exists_at_time))) }
@@ -660,11 +695,14 @@ class PlantsViewModel(
     private fun reloadMeasurementHistory(plantId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             val measurements = fetchMeasurementsForPlant(database, plantId)
-            val dateFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
+            val dateFormatter =
+                DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
 
             val elements = measurements.map { m ->
-                val formattedDate = Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault()).format(dateFormatter)
-                val weightStr = if (m.weight_grams % 1.0 == 0.0) "${m.weight_grams.toInt()} г" else "${m.weight_grams} г"
+                val formattedDate = Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault())
+                    .format(dateFormatter)
+                val weightStr =
+                    if (m.weight_grams % 1.0 == 0.0) "${m.weight_grams.toInt()} г" else "${m.weight_grams} г"
 
                 com.zghonnyk.plateau.feature.main.ui.state.MeasurementUiModel(
                     id = MeasurementId(m.id),
@@ -680,10 +718,12 @@ class PlantsViewModel(
     private fun reloadWateringHistory(plantId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             val waterings = fetchWateringsForPlant(database, plantId)
-            val dateFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
+            val dateFormatter =
+                DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
 
             val elements = waterings.map { w ->
-                val formattedDate = Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault()).format(dateFormatter)
+                val formattedDate = Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault())
+                    .format(dateFormatter)
                 val volumeStr = when (val v = w.water_volume_ml) {
                     null -> "об'єм не вказано"
                     else -> if (v.rem(1.0) == 0.0) "${v.toInt()} мл" else "$v мл"

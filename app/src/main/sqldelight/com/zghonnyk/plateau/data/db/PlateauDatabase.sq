@@ -122,7 +122,7 @@ selectPhotosByPlant:
 SELECT * FROM plant_photos WHERE plant_id = ? ORDER BY timestamp DESC;
 
 selectAllPhotos:
-SELECT * FROM plant_photos ORDER BY timestamp DESC;
+SELECT * FROM plant_photos ORDER BY timestamp ASC;
 
 selectLatestPhotoPerPlant:
 SELECT * FROM plant_photos

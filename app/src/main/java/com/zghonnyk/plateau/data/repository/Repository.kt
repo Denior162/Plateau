@@ -141,6 +141,9 @@ fun observeAllPrunings(db: PlateauDatabase) =
 fun insertNewPruning(db: PlateauDatabase, plantId: Long, timestamp: Long, removedGrams: Double?) =
     db.plateauDatabaseQueries.insertPruning(plantId, timestamp, removedGrams)
 
+fun observeAllPhotos(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectAllPhotos().asFlow().mapToList(Dispatchers.IO)
+
 sealed interface PotChoice {
     data class Existing(val id: Long) : PotChoice
     data class New(val name: String, val massGrams: Double?) : PotChoice
@@ -172,9 +175,6 @@ fun observeAllRepottings(db: PlateauDatabase) =
 
 fun observeAllSoilAdditions(db: PlateauDatabase) =
     db.plateauDatabaseQueries.selectAllSoilAdditions().asFlow().mapToList(Dispatchers.IO)
-
-fun observeAllPhotos(db: PlateauDatabase) =
-    db.plateauDatabaseQueries.selectAllPhotos().asFlow().mapToList(Dispatchers.IO)
 
 fun observePhotosByPlant(db: PlateauDatabase, plantId: Long) =
     db.plateauDatabaseQueries.selectPhotosByPlant(plantId).asFlow().mapToList(Dispatchers.IO)

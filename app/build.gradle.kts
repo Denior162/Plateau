@@ -16,8 +16,8 @@ android {
         applicationId = "com.zghonnyk.plateau"
         minSdk = 30
         targetSdk = 37
-        versionCode = 8
-        versionName = "1.0.8"
+        versionCode = 9
+        versionName = "1.0.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -56,6 +56,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    implementation(libs.coil.compose)
     implementation(project(":feature:main"))
     implementation(project(":vector-zipper"))
     implementation(project(":core:ui"))
