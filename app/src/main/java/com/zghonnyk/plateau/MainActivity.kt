@@ -36,7 +36,9 @@ class MainActivity : ComponentActivity() {
                                 ClipData.newPlainText(effect.label, effect.text).toClipEntry()
                             )
 
-                            is PlantsViewModel.PlantEffect.ShowMessage -> {}
+                            is PlantsViewModel.PlantEffect.ShowMessage -> {
+                            android.widget.Toast.makeText(this@MainActivity, effect.text.asString(this@MainActivity), android.widget.Toast.LENGTH_SHORT).show()
+                        }
                         }
                     }
                 }

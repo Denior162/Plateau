@@ -24,7 +24,7 @@ fun importBackup(db: PlateauDatabase, entries: List<CsvEntry>): ImportSummary {
         fun bump(type: String) { added[type] = (added[type] ?: 0) + 1 }
 
         fun lookup(map: Map<String, Long>, kind: String, name: String, line: Int): Long =
-            map[name] ?: csvBad("строка $line: $kind «$name» нет ни в файле, ни в базе")
+            map[name] ?: csvBad("line $line: $kind \"$name\" is not found in file or database")
 
         entries.filterIsInstance<SoilEntry>().forEach { e ->
             if (e.name !in soil) {

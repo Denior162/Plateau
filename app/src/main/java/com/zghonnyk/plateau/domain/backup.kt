@@ -60,13 +60,13 @@ private val POT_TYPES = setOf("classic", "cachepot", "self_watering", "technical
 private val WATERING_METHODS = setOf("root", "drip", "overhead", "subsurface", "auto")
 
 private fun CsvRecord.oneOf(k: String, allowed: Set<String>): String? =
-    opt(k)?.also { if (it !in allowed) fail("$k «$it», допустимо: ${allowed.joinToString()}") }
+    opt(k)?.also { if (it !in allowed) fail("$k \"$it\", allowed: ${allowed.joinToString()}") }
 
 private fun CsvRecord.pos(k: String): Double? =
-    num(k)?.also { if (it <= 0) fail("$k должно быть больше 0") }
+    num(k)?.also { if (it <= 0) fail("$k must be greater than 0") }
 
 private fun CsvRecord.posInt(k: String): Int? =
-    int(k)?.also { if (it <= 0) fail("$k должно быть больше 0") }
+    int(k)?.also { if (it <= 0) fail("$k must be greater than 0") }
 
 fun CsvRecord.toEntry(): CsvEntry = when (type) {
     "soil" -> SoilEntry(line, req("name"), num("acidity_ph"), opt("components_description"))
@@ -86,7 +86,7 @@ fun CsvRecord.toEntry(): CsvEntry = when (type) {
     )
     "measurement" -> MeasurementEntry(
         line, req("plant"), reqTs(),
-        pos("weight_grams") ?: fail("пустое поле «weight_grams»"), bool("excluded"),
+        pos("weight_grams") ?: fail("empty field \"weight_grams\""), bool("excluded"),
     )
     "watering" -> WateringEntry(line, req("plant"), reqTs(), pos("water_volume_ml"))
     "removal" -> RemovalEntry(
@@ -98,7 +98,7 @@ fun CsvRecord.toEntry(): CsvEntry = when (type) {
     "repotting" -> RepottingEntry(
         line, req("plant"), reqTs(), req("pot"), opt("soil"), opt("reason"),
     )
-    else -> fail("неизвестный type «$type»")
+    else -> fail("unknown type \"$type\"")
 }
 
 /** Excel в укр. локали сохраняет CSV в windows-1251; если это не UTF-8, читаем как 1251. */
@@ -121,7 +121,7 @@ fun parseBackup(text: String): List<CsvEntry> {
     val firstLine = clean.lineSequence().first()
     val delimiter = if (';' in firstLine && ',' !in firstLine) ';' else ','
     val table = parseCsv(clean, delimiter)
-    if (table.isEmpty()) csvBad("файл пустой")
+    if (table.isEmpty()) csvBad("file is empty")
 
     val header = table.first().cells.map { it.trim().lowercase() }
     val records = table.drop(1).map { l ->
@@ -131,7 +131,7 @@ fun parseBackup(text: String): List<CsvEntry> {
     val unified = when {
         "type" in header -> records
         "plant" in header -> legacy(records)
-        else -> csvBad("нет колонки «type» (или «plant» для старого формата)")
+        else -> csvBad("no \"type\" column (or \"plant\" for legacy format)")
     }
     return unified.map { it.toEntry() }
 }
@@ -147,7 +147,7 @@ private fun legacy(rows: List<CsvRecord>): List<CsvRecord> {
         }
         val hasTs = r.str("timestamp").isNotEmpty()
         val hasWeight = r.str("weight_grams").isNotEmpty()
-        if (hasTs != hasWeight) r.fail("дата и вес должны быть заданы вместе")
+        if (hasTs != hasWeight) r.fail("date and weight must be specified together")
         if (hasTs) meas += CsvRecord(
             "measurement", r.line,
             mapOf("plant" to plant, "timestamp" to r.str("timestamp"), "weight_grams" to r.str("weight_grams")),

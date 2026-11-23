@@ -21,18 +21,18 @@ val CSV_HEADER = listOf(
 class CsvRecord(val type: String, val line: Int, private val f: Map<String, String>) {
     fun str(k: String) = f[k].orEmpty()
     fun opt(k: String) = str(k).ifEmpty { null }
-    fun req(k: String) = opt(k) ?: fail("пустое поле «$k»")
+    fun req(k: String) = opt(k) ?: fail("empty field \"$k\"")
 
     fun num(k: String): Double? {
         val raw = str(k)
         if (raw.isEmpty()) return null
-        return raw.replace(',', '.').toDoubleOrNull() ?: fail("неверное число $k «$raw»")
+        return raw.replace(',', '.').toDoubleOrNull() ?: fail("invalid number $k \"$raw\"")
     }
-    fun reqNum(k: String) = num(k) ?: fail("пустое поле «$k»")
+    fun reqNum(k: String) = num(k) ?: fail("empty field \"$k\"")
 
     fun int(k: String): Int? {
         val d = num(k) ?: return null
-        return if (d % 1.0 == 0.0) d.toInt() else fail("$k должно быть целым, а не «${str(k)}»")
+        return if (d % 1.0 == 0.0) d.toInt() else fail("$k must be an integer, not \"${str(k)}\"")
     }
 
     fun ts(k: String = "timestamp"): Instant? {
@@ -41,14 +41,14 @@ class CsvRecord(val type: String, val line: Int, private val f: Map<String, Stri
         return try {
             raw.toLongOrNull()?.let(Instant::ofEpochMilli) ?: Instant.parse(raw)
         } catch (e: DateTimeParseException) {
-            fail("неверная дата «$raw»")
+            fail("invalid date \"$raw\"")
         }
     }
-    fun reqTs(k: String = "timestamp") = ts(k) ?: fail("пустое поле «$k»")
+    fun reqTs(k: String = "timestamp") = ts(k) ?: fail("empty field \"$k\"")
 
     fun bool(k: String) = str(k) == "1" || str(k).equals("true", ignoreCase = true)
 
-    fun fail(msg: String): Nothing = csvBad("строка $line: $msg")
+    fun fail(msg: String): Nothing = csvBad("line $line: $msg")
 
     fun toCells(): List<String> = CSV_HEADER.map { if (it == "type") type else f[it].orEmpty() }
 }
@@ -101,7 +101,7 @@ fun parseCsv(text: String, delimiter: Char = ','): List<CsvLine> {
         }
         i++
     }
-    if (inQuotes) csvBad("не закрыта кавычка")
+    if (inQuotes) csvBad("unclosed quote")
     if (cell.isNotEmpty() || row.isNotEmpty()) endRow()
     return rows
 }

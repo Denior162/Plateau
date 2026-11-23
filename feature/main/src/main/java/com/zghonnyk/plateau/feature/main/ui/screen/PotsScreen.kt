@@ -26,6 +26,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -82,8 +83,7 @@ fun PotsScreen(
     onToggleDropdown: (Boolean) -> Unit,
     onSelectSpecies: (Long?) -> Unit,
     pendingDelete: PendingDelete?,
-    onUndoDelete: () -> Unit,
-    onOpenAnalytics: () -> Unit
+    onUndoDelete: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val lazyListState = rememberLazyListState()
@@ -102,7 +102,6 @@ fun PotsScreen(
                 scrollBehavior = scrollBehavior,
                 onExport = onExport,
                 onImport = onImport,
-                onOpenAnalytics = onOpenAnalytics
             )
 
         },
@@ -135,7 +134,7 @@ fun PotsScreen(
 
             AlertDialog(
                 onDismissRequest = onCancelEdit,
-                title = { Text("Редагувати рослину") },
+                title = { Text(stringResource(R.string.edit_plant_title)) },
                 text = {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(spacing.medium),
@@ -179,7 +178,7 @@ fun PotsScreen(
                                 expanded = editingPlant.isDropdownExpanded,
                                 onDismissRequest = { onToggleDropdown(false) }) {
                                 DropdownMenuItem(
-                                    text = { Text("Incertae sedis (Невідомий вид)") },
+                                    text = { Text(stringResource(R.string.unknown_species_label)) },
                                     onClick = { onSelectSpecies(null) })
                                 editingPlant.speciesList.forEach { species ->
                                     val displayName = buildString {
@@ -195,12 +194,12 @@ fun PotsScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = onSave) {
-                        Text("Зберегти")
+                        Text(stringResource(R.string.save_button))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = onCancelEdit) {
-                        Text("Скасувати")
+                        Text(stringResource(R.string.cancel_button))
                     }
                 })
         }
@@ -259,18 +258,9 @@ private fun CsvMenuPreview() = CsvMenu(onExport = {}, onImport = {})
 fun PlantsTopBar(
     onExport: (Uri) -> Unit,
     onImport: (Uri) -> Unit,
-    onOpenAnalytics: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior
 ) = CenterAlignedTopAppBar(
     title = { Text(stringResource(R.string.app_name)) },
-    navigationIcon = {
-        IconButton(onClick = onOpenAnalytics) {
-            Icon(
-                painter = painterResource(R.drawable.analytics),
-                contentDescription = "Аналітика"
-            )
-        }
-    },
     actions = {
         CsvMenuActions(
             onExport = onExport,
@@ -315,11 +305,12 @@ fun PotsContent(
         val cardState = pendingDelete?.takeIf { it.plantId == plant.id }
             ?.let { PlantCardState.Deletion(it.progress) } ?: PlantCardState.Default
 
+        @Composable
         fun Long.formatElapsedTime(): String {
             return if (this >= 24) {
-                "${this / 24} d"
+                stringResource(R.string.elapsed_days, this / 24)
             } else {
-                "$this h"
+                stringResource(R.string.elapsed_hours, this)
             }
         }
 
@@ -404,7 +395,7 @@ fun OnePlantItem(
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 ) {
-                    Icon(painterResource(R.drawable.edit), "відредагувати рослину")
+                    Icon(painterResource(R.drawable.edit), stringResource(R.string.cd_edit_plant))
                 }
                 IconButton(
                     onClick = onDelete, colors = IconButtonDefaults.iconButtonColors(
@@ -412,11 +403,11 @@ fun OnePlantItem(
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                     )
                 ) {
-                    Icon(painterResource(R.drawable.delete), "видалити рослину")
+                    Icon(painterResource(R.drawable.delete), stringResource(R.string.cd_delete_plant))
                 }
             }
 
-            is PlantCardState.Deletion -> Button(onClick = onUndoDelete) { Text("Повернути") }
+            is PlantCardState.Deletion -> Button(onClick = onUndoDelete) { Text(stringResource(R.string.undo_delete)) }
         }
     }
 }

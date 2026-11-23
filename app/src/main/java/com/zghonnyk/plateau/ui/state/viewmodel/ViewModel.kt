@@ -34,6 +34,7 @@ import com.zghonnyk.domain.predictWeight
 import com.zghonnyk.domain.splitIntoPhases
 import com.zghonnyk.domain.timeline
 import com.zghonnyk.domain.withRates
+import com.zghonnyk.plateau.feature.main.R
 import com.zghonnyk.plateau.PlateauApplication
 import com.zghonnyk.plateau.data.db.PlateauDatabase
 import com.zghonnyk.plateau.data.repository.PotChoice
@@ -112,8 +113,23 @@ class PlantsViewModel(
     private val _uiState = MutableStateFlow<PlantState>(PlantState.DBUninitialized)
     val uiState: StateFlow<PlantState> = _uiState.asStateFlow()
 
+    sealed interface UiText {
+    data class DynamicString(val value: String) : UiText
+    data class Resource(
+        val resId: Int,
+        val args: List<Any> = emptyList()
+    ) : UiText {
+        constructor(resId: Int, vararg args: Any) : this(resId, args.toList())
+    }
+
+    fun asString(context: android.content.Context): String = when (this) {
+        is DynamicString -> value
+        is Resource -> context.getString(resId, *args.toTypedArray())
+    }
+}
+
     sealed interface PlantEffect {
-        data class ShowMessage(val text: String) : PlantEffect
+        data class ShowMessage(val text: UiText) : PlantEffect
         data class CopyToClipboard(val label: String, val text: String) : PlantEffect
     }
 
@@ -131,24 +147,30 @@ class PlantsViewModel(
     private var deleteJob: Job? = null
     private fun exportCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
-            val msg = runCatching {
-                val out = deps.openOut(uri) ?: error("не удалось открыть файл")
+            val msg: UiText = try {
+                val out = deps.openOut(uri) ?: return@launch _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_cannot_open_file)))
                 out.bufferedWriter(Charsets.UTF_8).use { it.write(toCsv(exportRows(database))) }
-            }.fold({ "Экспорт готов" }, { "Ошибка экспорта: ${it.message}" })
+                UiText.Resource(R.string.export_ready)
+            } catch (e: Exception) {
+                UiText.Resource(R.string.export_error, listOf(e.message.orEmpty()))
+            }
             _effects.send(PlantEffect.ShowMessage(msg))
         }
     }
 
     fun importCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
-            val msg = runCatching {
-                val input = deps.openIn(uri) ?: error("не удалось открыть файл")
+            val msg: UiText = try {
+                val input = deps.openIn(uri) ?: return@launch _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_cannot_open_file)))
                 val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                importBackup(database, parseBackup(text))
-            }.fold(
-                { "Растений: +${it.plantsAdded}, замеров: +${it.measurementsAdded}, дублей пропущено: ${it.measurementsSkipped}" },
-                { "Ошибка импорта: ${it.message}" },
-            )
+                val summary = importBackup(database, parseBackup(text))
+                UiText.Resource(
+                    R.string.import_success,
+                    listOf(summary.plantsAdded, summary.measurementsAdded, summary.measurementsSkipped)
+                )
+            } catch (e: Exception) {
+                UiText.Resource(R.string.import_error, listOf(e.message.orEmpty()))
+            }
             _effects.send(PlantEffect.ShowMessage(msg))
         }
     }
@@ -350,7 +372,7 @@ class PlantsViewModel(
     }
 
     private fun persist(
-        errorText: String,
+        errorText: UiText,
         onSuccess: () -> Unit,
         block: () -> Unit,
     ) {
@@ -371,7 +393,7 @@ class PlantsViewModel(
                 }
                 .onFailure {
                     Log.e("Photo", "failed to copy photo", it)
-                    _effects.send(PlantEffect.ShowMessage("Не вдалося додати фото"))
+                    _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_failed_to_add_photo)))
                 }
         }
     }
@@ -414,7 +436,7 @@ class PlantsViewModel(
             }.onSuccess {
                 reduce(PlantIntent.EditingWatering.Save)
             }.onFailure {
-                _effects.send(PlantEffect.ShowMessage("Не вдалося зберегти зміни поливу"))
+                _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_failed_to_save_watering)))
             }
         }
     }
@@ -603,7 +625,7 @@ class PlantsViewModel(
                     updateMeasurement(database, measurementId.value, weight, timestamp.toEpochMilli())
                 }
             }.onSuccess { reduce(PlantIntent.EditingMeasurement.Save) }
-                .onFailure { _effects.send(PlantEffect.ShowMessage("Не вдалося зберегти: на цей час вже є вимір")) }
+                .onFailure { _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_measurement_exists_at_time))) }
         }
     }
 

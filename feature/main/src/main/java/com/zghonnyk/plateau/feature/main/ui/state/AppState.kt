@@ -23,12 +23,6 @@ sealed interface PlantState {
     sealed interface Modal : Active {
         override val parent: Screen
     }
-
-    @Immutable
-    data class Analytics(
-        override val parent: Overview,
-    ) : Screen
-
     @Immutable
     data class Overview(val plants: List<PlantUi>) : Screen {
         override val parent: Nothing? get() = null
@@ -192,7 +186,6 @@ sealed interface PlantIntent {
 
     sealed interface Overview : PlantIntent {
 
-        data object OpenAnalytics : Overview
         data class SelectPlant(val plantId: PlantId) : Overview
         data object OpenAddPlant : Overview
         data class StartEditingPlantName(val plantId: PlantId) : Overview

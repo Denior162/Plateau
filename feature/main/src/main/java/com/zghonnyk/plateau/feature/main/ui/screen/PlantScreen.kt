@@ -172,22 +172,22 @@ fun WateringDialog(
             initialTimestamp = null
         )
     }
-    AlertDialog(onDismissRequest = onCancel, title = { Text("Полив") }, text = {
+    AlertDialog(onDismissRequest = onCancel, title = { Text(stringResource(R.string.watering_dialog_title)) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
             Text(
-                "Після поливу почнеться новий цикл вимірів.",
+                stringResource(R.string.watering_dialog_desc),
                 style = Theme.typography.bodySmall
             )
             OutlinedTextField(
                 state = state.volumeInput,
-                label = { Text("Обʼєм води (мл), необовʼязково") },
+                label = { Text(stringResource(R.string.watering_volume_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 lineLimits = TextFieldLineLimits.SingleLine,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
             OutlinedTextField(
                 state = state.weightInput,
-                label = { Text("Маса після поливу та повного стікання (г)") },
+                label = { Text(stringResource(R.string.watering_weight_label)) },
                 isError = !weightValid,
                 modifier = Modifier.fillMaxWidth(),
                 lineLimits = TextFieldLineLimits.SingleLine,
@@ -196,17 +196,17 @@ fun WateringDialog(
             Button(onClick = onOpenDateTimePicker) {
                 Icon(
                     painterResource(R.drawable.edit_calendar),
-                    contentDescription = "Вказати дату/час"
+                    contentDescription = stringResource(R.string.cd_specify_datetime)
                 )
             }
         }
     }, confirmButton = {
         TextButton(
             onClick = onSave, enabled = weightValid
-        ) { Text("Зберегти") }
+        ) { Text(stringResource(R.string.save_button)) }
     }, dismissButton = {
         TextButton(onClick = onCancel) {
-            Text("Скасувати")
+            Text(stringResource(R.string.cancel_button))
         }
     })
 }
@@ -256,7 +256,7 @@ fun PruningDialog(
                 Button(onClick = onOpenDateTimePicker) {
                     Icon(
                         painterResource(R.drawable.edit_calendar),
-                        contentDescription = "Вказати дату/час"
+                        contentDescription = stringResource(R.string.cd_specify_datetime)
                     )
                 }
             }
@@ -353,19 +353,19 @@ fun RepottingDialog(
         onDismissRequest = onCancel,
         title = {
             Text(
-                "Пересадка",
+                stringResource(R.string.repotting_dialog_title),
                 style = Theme.typography.titleSmall
             )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 Text(
-                    "Після пересадки почнеться новий цикл вимірів.",
+                    stringResource(R.string.repotting_dialog_desc),
                     style = Theme.typography.bodySmall
                 )
                 OutlinedTextField(
                     state = state.weightInput,
-                    label = { Text("Маса після пересадки (г)") },
+                    label = { Text(stringResource(R.string.repotting_weight_label)) },
                     isError = !weightValid,
                     modifier = Modifier.fillMaxWidth(),
                     lineLimits = TextFieldLineLimits.SingleLine,
@@ -374,7 +374,7 @@ fun RepottingDialog(
                 Button(onClick = onOpenDateTimePicker) {
                     Icon(
                         painterResource(R.drawable.edit_calendar),
-                        contentDescription = "Вказати дату/час"
+                        contentDescription = stringResource(R.string.cd_specify_datetime)
                     )
                 }
             }
@@ -442,7 +442,7 @@ fun BottomButtonGroup(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester),
-                label = { Text("Маса горщика (г)") },
+                label = { Text(stringResource(R.string.pot_mass_label)) },
                 lineLimits = TextFieldLineLimits.SingleLine,
                 placeholder = prediction?.let { { Text(it) } },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -451,7 +451,7 @@ fun BottomButtonGroup(
                         IconButton(onOpenDateTimePicker) {
                             Icon(
                                 painterResource(R.drawable.edit_calendar),
-                                contentDescription = "Вказати дату/час",
+                                contentDescription = stringResource(R.string.cd_specify_datetime),
                                 tint = if (customTimestamp != null) Theme.colorScheme.primary
                                 else Theme.colorScheme.onSurfaceVariant
                             )
@@ -461,14 +461,14 @@ fun BottomButtonGroup(
                             onCancelMeasurement
                         ) {
                             Icon(
-                                painterResource(R.drawable.close), contentDescription = "Скасувати"
+                                painterResource(R.drawable.close), contentDescription = stringResource(R.string.cd_cancel)
                             )
                         }
 
                         FilledIconButton(
                             onSaveMeasurement, enabled = weightInput.text.isNotBlank()
                         ) {
-                            Icon(painterResource(R.drawable.check), contentDescription = "Зберегти")
+                            Icon(painterResource(R.drawable.check), contentDescription = stringResource(R.string.cd_save))
                         }
                         Spacer(Modifier.width(spacing.extraSmall))
                     }
@@ -487,7 +487,7 @@ fun BottomButtonGroup(
                         contentColor = Theme.colorScheme.onSecondaryContainer
                     )
                 ) {
-                    Icon(painterResource(R.drawable.left), contentDescription = "Вліво")
+                    Icon(painterResource(R.drawable.left), contentDescription = stringResource(R.string.cd_left))
                 }
                 Column(Modifier.weight(1F)) {
                     Button(
@@ -703,7 +703,7 @@ fun UsefulAnalyticsCard(
                 tint = Theme.colorScheme.onTertiaryContainer
             )
             Text(
-                text = "Drying Analytics",
+                text = stringResource(R.string.drying_analytics_title),
                 style = Theme.typography.labelLarge,
                 color = Theme.colorScheme.onTertiaryContainer
             )
@@ -719,10 +719,10 @@ fun UsefulAnalyticsCard(
             style = Theme.typography.bodyMedium,
         )
         forecast.recommendedInterval?.inWholeHours?.let { hours ->
-            Text(text = "Recommended weighting interval: $hours h")
+            Text(text = stringResource(R.string.recommended_weighing_interval, hours))
         }
         moisture?.let { formattedMoisture ->
-            Text(text = "Current moisture: $formattedMoisture")
+            Text(text = stringResource(R.string.current_moisture, formattedMoisture))
         }
         val expFit = (forecast as? DryingForecast.Active)?.expFit
         val predictedWeight = expFit?.plateauWeight
@@ -739,12 +739,12 @@ fun UsefulAnalyticsCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Predicted plateau weight: ${predictedWeight.roundToInt()} g",
+                    text = stringResource(R.string.predicted_plateau_weight, predictedWeight.roundToInt()),
                     style = Theme.typography.bodySmall,
                     color = Theme.colorScheme.onTertiaryContainer
                 )
                 Text(
-                    text = "RMSE: %.1f г".format(Locale.US, rmseVal),
+                    text = stringResource(R.string.rmse_format, rmseVal ?: 0.0),
                     style = Theme.typography.bodySmall,
                     color = Theme.colorScheme.onTertiaryContainer
                 )
@@ -857,12 +857,12 @@ fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent
 
     AlertDialog(
         onDismissRequest = { onIntent(PlantIntent.Back) },
-        title = { Text("Редагувати вимір") },
+        title = { Text(stringResource(R.string.history_edit_measurement)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 OutlinedTextField(
                     state = state.weightInput,
-                    label = { Text("Вага (г)") },
+                    label = { Text(stringResource(R.string.history_weight_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     lineLimits = TextFieldLineLimits.SingleLine,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -873,8 +873,8 @@ fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) { Text("Зберегти") } },
-        dismissButton = { TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text("Скасувати") } },
+        confirmButton = { TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) { Text(stringResource(R.string.save_button)) } },
+        dismissButton = { TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text(stringResource(R.string.cancel_button)) } },
     )
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(

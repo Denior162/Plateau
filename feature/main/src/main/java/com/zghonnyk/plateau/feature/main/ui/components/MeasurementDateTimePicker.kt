@@ -9,6 +9,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
+import com.zghonnyk.plateau.feature.main.R
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
@@ -62,11 +64,11 @@ fun MeasurementDateTimePicker(
                             step = PickerStep.Time
                         }
                     }) {
-                        Text("Далі")
+                        Text(stringResource(R.string.picker_next))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = onDismiss) { Text("Скасувати") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.picker_cancel)) }
                 }
             ) {
                 DatePicker(state = datePickerState)
@@ -81,13 +83,13 @@ fun MeasurementDateTimePicker(
 
             AlertDialog(
                 onDismissRequest = onDismiss,
-                title = { Text("Оберіть час") },
+                title = { Text(stringResource(R.string.picker_select_time)) },
                 text = {
                     Column {
                         TimePicker(state = timePickerState)
                         if (isFuture) {
                             Text(
-                                "Не можна обирати час у майбутньому",
+                                stringResource(R.string.picker_future_error),
                                 modifier = Modifier.padding(top = spacing.small)
                             )
                         }
@@ -103,11 +105,11 @@ fun MeasurementDateTimePicker(
                         },
                         enabled = !isFuture
                     ) {
-                        Text("Готово")
+                        Text(stringResource(R.string.picker_done))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = onDismiss) { Text("Скасувати") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.picker_cancel)) }
                 }
             )
         }

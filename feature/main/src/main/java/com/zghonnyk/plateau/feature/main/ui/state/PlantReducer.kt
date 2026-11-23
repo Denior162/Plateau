@@ -133,7 +133,6 @@ private fun S.Overview.reduce(i: I.Overview): S.Active = when (i) {
         } ?: this
 
     is I.Overview.Deletion -> this
-    I.Overview.OpenAnalytics -> S.Analytics(parent = this)
 }
 
 private fun S.EditingName.reduce(i: I.EditingName): S.Active = when (i) {
@@ -310,12 +309,9 @@ private fun S.Active.withPlants(plants: List<PlantUi>): S.Active {
                 is HistoryModal.EditWatering -> copy(parent = newHistory)
             }
         }
-
-        is S.Analytics -> copy(parent = parent.copy(plants = plants))
     }
 }
 
-/** Фокус остаётся на том же растении; если оно исчезло — на соседнем (как раньше). */
 private fun S.Details.Plant.refocused(plants: List<PlantUi>): S.Details.Plant {
     val i = plants.indexOfFirst { it.id == focus.id }
         .takeIf { it != -1 }
@@ -323,7 +319,6 @@ private fun S.Details.Plant.refocused(plants: List<PlantUi>): S.Details.Plant {
     return S.Details.Plant(VectorZipper(i, plants))
 }
 
-/** Ребёнок Plant сохраняется, только если «его» растение живо; иначе поднимаемся на Plant. */
 private inline fun S.Details.Plant.rebased(
     plants: List<PlantUi>,
     build: (S.Details.Plant) -> S.Active,

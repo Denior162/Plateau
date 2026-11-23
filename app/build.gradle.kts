@@ -7,15 +7,17 @@ plugins {
 android {
     namespace = "com.zghonnyk.plateau"
     compileSdk {
-        version = release(37)
+        version = release(37) {
+            minorApiLevel = 1
+        }
     }
 
     defaultConfig {
         applicationId = "com.zghonnyk.plateau"
         minSdk = 30
         targetSdk = 37
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.0.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

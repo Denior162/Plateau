@@ -7,4 +7,101 @@
     <string name="add_plant_name_placeholder">Напишіть ім\'я рослини сюди</string>
     <string name="no_meas">Немає вимірів.\nЧас додати першу вагу!</string>
     <string name="expected_weight_placeholder">Очікується %1$d–%2$d г</string>
+
+    <!-- MeasurementDateTimePicker -->
+    <string name="picker_next">Далі</string>
+    <string name="picker_cancel">Скасувати</string>
+    <string name="picker_select_time">Оберіть час</string>
+    <string name="picker_future_error">Не можна обирати час у майбутньому</string>
+    <string name="picker_done">Готово</string>
+
+    <!-- AddPlantScreen -->
+    <string name="species_unselected">Вид не обрано</string>
+    <string name="species_unknown">Невідомий вид</string>
+    <string name="i_dont_know">Я не знаю</string>
+
+    <!-- AnalyticsScreen -->
+    <string name="analytics_title">Аналітика Плато</string>
+    <string name="analytics_back">Назад</string>
+    <string name="analytics_global_title">Глобальна аналітика Плато</string>
+    <string name="analytics_global_median">Медіанна швидкість висихання: %1$.1f г/день</string>
+    <string name="analytics_global_subtitle">По всіх видах та рослинах</string>
+    <string name="analytics_moisture_loss_title">💧 Втрата вологи за видами</string>
+    <string name="analytics_select_species">Оберіть вид</string>
+    <string name="analytics_total_evaporated">Всього випарувалося: %1$.1f г</string>
+    <string name="analytics_species_empty">Список видів порожній</string>
+    <string name="analytics_species_stats_title">🌿 Статистика за видами</string>
+    <string name="analytics_species_stats_subtitle">Види з 2+ вимірами</string>
+    <string name="analytics_insufficient_data">Недостатньо даних</string>
+    <string name="analytics_stat_plants">Рослини: %1$d</string>
+    <string name="analytics_stat_measurements">Виміри: %1$d</string>
+    <string name="analytics_stat_avg_weight">Середня вага: %1$.1f г</string>
+    <string name="analytics_stat_max_weight">Макс. вага: %1$.1f г</string>
+    <string name="analytics_large_plants_title">🏆 Великі рослини (пікова вага)</string>
+    <string name="analytics_min_peak_weight">Мін. пікова вага: %1$d г</string>
+    <string name="analytics_no_large_plants">Немає рослин із вагою &gt;= %1$d г</string>
+    <string name="analytics_plant_measurements">%1$d вимірів</string>
+    <string name="analytics_dynamics_title">Динаміка за період</string>
+    <string name="analytics_from_date">З: 01.09.2026</string>
+    <string name="analytics_to_date">До: Сьогодні</string>
+    <string name="analytics_no_data_period">Немає даних за цей період</string>
+    <string name="analytics_period_summary">%1$d вимірів, сер. вага: %2$.1f г</string>
+
+    <!-- HistoryScreens -->
+    <string name="history_weighing_item">%1$s — %2$s г</string>
+    <string name="history_watering_item">%1$s — Полив (%2$s)</string>
+    <string name="history_volume_ml">%1$s мл</string>
+    <string name="history_volume_not_specified">об\'єм не вказано</string>
+    <string name="history_edit_measurement">Редагувати вимір</string>
+    <string name="history_edit_watering">Редагувати полив</string>
+    <string name="history_weight_label">Вага (г)</string>
+    <string name="history_volume_label">Об\'єм води (мл)</string>
+    <string name="history_cd_edit">Редагувати</string>
+    <string name="history_cd_delete">Видалити</string>
+
+    <!-- PlantScreen -->
+    <string name="watering_dialog_title">Полив</string>
+    <string name="watering_dialog_desc">Після поливу почнеться новий цикл вимірів.</string>
+    <string name="watering_volume_label">Об\'єм води (мл), необов\'язково</string>
+    <string name="watering_weight_label">Маса після поливу та повного стікання (г)</string>
+    <string name="cd_specify_datetime">Вказати дату/час</string>
+    <string name="repotting_dialog_title">Пересадка</string>
+    <string name="repotting_dialog_desc">Після пересадки почнеться новий цикл вимірів.</string>
+    <string name="repotting_weight_label">Маса після пересадки (г)</string>
+    <string name="pot_mass_label">Маса горщика (г)</string>
+    <string name="cd_left">Вліво</string>
+    <string name="cd_right">Вправо</string>
+    <string name="cd_cancel">Скасувати</string>
+    <string name="cd_save">Зберегти</string>
+    <string name="save_button">Зберегти</string>
+    <string name="cancel_button">Скасувати</string>
+    <string name="drying_analytics_title">Аналітика висихання</string>
+    <string name="recommended_weighing_interval">Рекомендований інтервал зважування: %1$d год</string>
+    <string name="current_moisture">Поточна вологість: %1$s</string>
+    <string name="predicted_plateau_weight">Прогнозована вага плато: %1$d г</string>
+    <string name="rmse_format">RMSE: %1$.1f г</string>
+
+    <!-- PotsScreen -->
+    <string name="cd_analytics">Аналітика</string>
+    <string name="edit_plant_title">Редагувати рослину</string>
+    <string name="unknown_species_label">Incertae sedis (Невідомий вид)</string>
+    <string name="elapsed_days">%1$d д</string>
+    <string name="elapsed_hours">%1$d год</string>
+    <string name="cd_edit_plant">Відредагувати рослину</string>
+    <string name="cd_delete_plant">Видалити рослину</string>
+    <string name="undo_delete">Повернути</string>
+
+    <!-- SpeciesScreen -->
+    <string name="species_screen_title">Види рослин (Species)</string>
+    <string name="species_id_format">ID: %1$s</string>
+
+    <!-- ViewModel -->
+    <string name="error_cannot_open_file">Не вдалося відкрити файл</string>
+    <string name="export_ready">Експорт готовий</string>
+    <string name="export_error">Помилка експорту: %1$s</string>
+    <string name="import_success">Рослин: +%1$d, вимірів: +%2$d, дублів пропущено: %3$d</string>
+    <string name="import_error">Помилка імпорту: %1$s</string>
+    <string name="error_failed_to_add_photo">Не вдалося додати фото</string>
+    <string name="error_failed_to_save_watering">Не вдалося зберегти зміни поливу</string>
+    <string name="error_measurement_exists_at_time">Не вдалося зберегти: на цей час вже є вимір</string>
 </resources>

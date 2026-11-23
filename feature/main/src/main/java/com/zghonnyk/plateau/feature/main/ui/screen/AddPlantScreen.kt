@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuBoxScope
@@ -166,8 +167,8 @@ private fun ExposedDropdownMenuBoxScope.SpeciesSelectorRow(
     onUnknownSpecies: () -> Unit
 ) {
     val label = when (selection) {
-        SpeciesSelection.Unselected -> "вид не обрано"
-        SpeciesSelection.Unknown -> "невідомий вид"
+        SpeciesSelection.Unselected -> stringResource(R.string.species_unselected)
+        SpeciesSelection.Unknown -> stringResource(R.string.species_unknown)
         is SpeciesSelection.Selected -> selection.species.latinName
     }
 
@@ -194,7 +195,7 @@ private fun ExposedDropdownMenuBoxScope.SpeciesSelectorRow(
 @Composable
 fun IDoNotKnowSpeciesButton(onClick: () -> Unit) {
     Button(onClick = onClick) {
-        Text("I don't know")
+        Text(stringResource(R.string.i_dont_know))
     }
 }
 

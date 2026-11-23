@@ -80,7 +80,7 @@ fun HistoryScreen(
                     is Weighing -> {
                         val rawWeight = entry.m.weightGrams.formatNumber()
                         HistoryRowCard(
-                            text = "${dateFormatter.format(entry.at)} — $rawWeight г",
+                            text = stringResource(R.string.history_weighing_item, dateFormatter.format(entry.at), rawWeight),
                             onEdit = {
                                 onIntent(
                                     PlantIntent.Details.StartEditingMeasurement(
@@ -99,9 +99,9 @@ fun HistoryScreen(
                     is Watering -> {
                         val rawVolume = entry.volumeMl?.formatNumber().orEmpty()
                         val volumeLabel =
-                            if (rawVolume.isNotEmpty()) "$rawVolume мл" else "об'єм не вказано"
+                            if (rawVolume.isNotEmpty()) stringResource(R.string.history_volume_ml, rawVolume) else stringResource(R.string.history_volume_not_specified)
                         HistoryRowCard(
-                            text = "${dateFormatter.format(entry.at)} — Полив ($volumeLabel)",
+                            text = stringResource(R.string.history_watering_item, dateFormatter.format(entry.at), volumeLabel),
                             onEdit = {
                                 onIntent(
                                     PlantIntent.Details.StartEditingWatering(
@@ -151,12 +151,12 @@ fun EditMeasurementDialog(
 
     AlertDialog(
         onDismissRequest = { onIntent(PlantIntent.Back) },
-        title = { Text("Редагувати вимір") },
+        title = { Text(stringResource(R.string.history_edit_measurement)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 OutlinedTextField(
                     state = state.weightInput,
-                    label = { Text("Вага (г)") },
+                    label = { Text(stringResource(R.string.history_weight_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     lineLimits = TextFieldLineLimits.SingleLine,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -168,10 +168,10 @@ fun EditMeasurementDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) { Text("Зберегти") }
+            TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) { Text(stringResource(R.string.save_button)) }
         },
         dismissButton = {
-            TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text("Скасувати") }
+            TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text(stringResource(R.string.cancel_button)) }
         },
     )
 
@@ -197,12 +197,12 @@ fun EditWateringDialog(
 
     AlertDialog(
         onDismissRequest = { onIntent(PlantIntent.Back) },
-        title = { Text("Редагувати полив") },
+        title = { Text(stringResource(R.string.history_edit_watering)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 OutlinedTextField(
                     state = state.volumeInput,
-                    label = { Text("Обʼєм води (мл)") },
+                    label = { Text(stringResource(R.string.history_volume_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     lineLimits = TextFieldLineLimits.SingleLine,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -214,10 +214,10 @@ fun EditWateringDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onIntent(PlantIntent.EditingWatering.Save) }) { Text("Зберегти") }
+            TextButton(onClick = { onIntent(PlantIntent.EditingWatering.Save) }) { Text(stringResource(R.string.save_button)) }
         },
         dismissButton = {
-            TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text("Скасувати") }
+            TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text(stringResource(R.string.cancel_button)) }
         },
     )
 
@@ -247,10 +247,10 @@ private fun HistoryRowCard(
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = onEdit) {
-                Icon(painterResource(R.drawable.edit), contentDescription = "Редагувати")
+                Icon(painterResource(R.drawable.edit), contentDescription = stringResource(R.string.history_cd_edit))
             }
             IconButton(onClick = onDelete) {
-                Icon(painterResource(R.drawable.delete), contentDescription = "Видалити")
+                Icon(painterResource(R.drawable.delete), contentDescription = stringResource(R.string.history_cd_delete))
             }
         }
     }
@@ -314,10 +314,10 @@ fun <T : HistoryUIModel> HistoryContent(
                                 modifier = Modifier.weight(1f) // Текст занимает всё свободное место
                             )
                             IconButton({ onEdit(item) }) {
-                                Icon(painterResource(R.drawable.edit), "редагувати")
+                                Icon(painterResource(R.drawable.edit), stringResource(R.string.history_cd_edit))
                             }
                             IconButton({ onDelete(item) }) {
-                                Icon(painterResource(R.drawable.delete), "видалити")
+                                Icon(painterResource(R.drawable.delete), stringResource(R.string.history_cd_delete))
                             }
                         }
                     }
@@ -339,12 +339,12 @@ fun EditWeightDialog(
     text = {
         OutlinedTextField(
             state = input,
-            label = { Text("Вага (г)") },
+            label = { Text(stringResource(R.string.history_weight_label)) },
             modifier = Modifier.fillMaxWidth(),
             lineLimits = TextFieldLineLimits.SingleLine,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     },
-    confirmButton = { TextButton(onSave) { Text("Зберегти") } },
-    dismissButton = { TextButton(onCancel) { Text("Скасувати") } },
+    confirmButton = { TextButton(onSave) { Text(stringResource(R.string.save_button)) } },
+    dismissButton = { TextButton(onCancel) { Text(stringResource(R.string.cancel_button)) } },
 )

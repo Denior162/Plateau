@@ -5,8 +5,11 @@ plugins {
 
 android {
     namespace = "com.zghonnyk.plateau.feature.main"
-    compileSdk = 37
-
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 1
+        }
+    }
     defaultConfig {
         minSdk = 30
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

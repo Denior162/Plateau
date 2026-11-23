@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -30,7 +31,7 @@ fun SpeciesScreen(
 ) = Scaffold(
     topBar = {
         TopAppBar(
-            title = { Text("Види рослин (Species)") },
+            title = { Text(stringResource(R.string.species_screen_title)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -54,7 +55,7 @@ fun SpeciesScreen(
         items(speciesList) { species ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "ID: ${species.id}", style = MaterialTheme.typography.bodySmall)
+                    Text(text = stringResource(R.string.species_id_format, species.id), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

@@ -17,7 +17,6 @@ import com.zghonnyk.domain.PlantPeakWeight
 import com.zghonnyk.domain.Species
 import com.zghonnyk.domain.SpeciesMeasurementStats
 import com.zghonnyk.plateau.feature.main.ui.screen.AddPlantScreen
-import com.zghonnyk.plateau.feature.main.ui.screen.AnalyticsScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryMeasScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryWatersScreen
@@ -173,15 +172,6 @@ private fun ActiveHost(
                 modal = state as? PlantState.PlantModal.HistoryModal,
                 onIntent = onIntent,
             )
-
-            is PlantState.Analytics -> AnalyticsScreen(
-                globalMedianFlow = median,
-                speciesStatsFlow = speciesStatsFlow,
-                speciesList = speciesList,
-                onGetEvaporatedForSpecies = onGetEvaporatedForSpecies,
-                onGetPlantsWithMinWeight = onGetPlantsWithMinWeight,
-                onGetMonthlyStats = onGetMonthlyStats,
-                onBack = { onIntent(PlantIntent.Back) })
         }
     }
 }
@@ -208,7 +198,6 @@ private fun OverviewHost(
         onImport = { uri -> onIntent(PlantIntent.ImportCsv(uri)) },
         pendingDelete = pendingDelete,
         onUndoDelete = { onIntent(PlantIntent.Overview.Deletion.Undo) },
-        onOpenAnalytics = { onIntent(PlantIntent.Overview.OpenAnalytics) },
     )
 }
 
@@ -225,5 +214,4 @@ private fun PlantState.Screen.key(): Any = when (this) {
     is PlantState.Creating -> "creating"
     is PlantState.Species -> "species"
     is PlantState.Details.History -> "hist:${plant.id.value}"
-    is PlantState.Analytics -> "anal"
 }
