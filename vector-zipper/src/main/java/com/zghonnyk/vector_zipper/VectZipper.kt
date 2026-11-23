@@ -22,5 +22,3 @@ data class VectorZipper<E>(
 
     fun goBack(): VectorZipper<E> = if (!isEmptyLefts) copy(index = index - 1) else this
 }
-
-data class NonEmptyList<E>(val head: E, val tail: List<E>)

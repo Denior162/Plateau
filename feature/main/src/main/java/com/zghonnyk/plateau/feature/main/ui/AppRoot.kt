@@ -12,7 +12,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.zghonnyk.domain.MonthlyStatItem
+import com.zghonnyk.domain.PlantPeakWeight
+import com.zghonnyk.domain.Species
+import com.zghonnyk.domain.SpeciesMeasurementStats
 import com.zghonnyk.plateau.feature.main.ui.screen.AddPlantScreen
+import com.zghonnyk.plateau.feature.main.ui.screen.AnalyticsScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryMeasScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryWatersScreen
@@ -23,30 +28,58 @@ import com.zghonnyk.plateau.feature.main.ui.state.PendingDelete
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Creating.SelectSpecies
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Creating.ToggleDropdown
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Details.DeleteMeasurement
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Details.DeleteWatering
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Details.StartEditingMeasurement
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Details.StartEditingWatering
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.canGoBack
+import kotlinx.coroutines.flow.Flow
 
 @Composable
 fun BackAwareAppRoot(
+    median: Flow<Double>,
+    speciesStatsFlow: Flow<List<SpeciesMeasurementStats>>,
+    speciesList: List<Species>,
+    onGetEvaporatedForSpecies: (Long) -> Flow<Double>,
+    onGetPlantsWithMinWeight: (Double) -> Flow<List<PlantPeakWeight>>,
     state: PlantState,
     pendingDelete: PendingDelete?,
     onIntent: (PlantIntent) -> Unit,
     modifier: Modifier = Modifier,
+    onGetMonthlyStats: (Long, Long) -> Flow<List<MonthlyStatItem>>,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_START) { onIntent(PlantIntent.Refresh) }
     BackHandler(enabled = state is PlantState.Active && state.canGoBack) {
         onIntent(PlantIntent.Back)
     }
-    AppRoot(state, pendingDelete, onIntent, modifier)
+    AppRoot(
+        median = median,
+        speciesStatsFlow = speciesStatsFlow,
+        speciesList = speciesList,
+        onGetEvaporatedForSpecies = onGetEvaporatedForSpecies,
+        onGetPlantsWithMinWeight = onGetPlantsWithMinWeight,
+        state = state,
+        pendingDelete = pendingDelete,
+        onIntent = onIntent,
+        modifier = modifier,
+        onGetMonthlyStats = onGetMonthlyStats,
+    )
 }
 
 @Composable
 fun AppRoot(
+    median: Flow<Double>,
+    speciesStatsFlow: Flow<List<SpeciesMeasurementStats>>,
+    speciesList: List<Species>,
+    onGetEvaporatedForSpecies: (Long) -> Flow<Double>,
+    onGetPlantsWithMinWeight: (Double) -> Flow<List<PlantPeakWeight>>,
     state: PlantState,
     pendingDelete: PendingDelete?,
     onIntent: (PlantIntent) -> Unit,
     modifier: Modifier = Modifier,
+    onGetMonthlyStats: (Long, Long) -> Flow<List<MonthlyStatItem>>,
 ) = when (state) {
     is PlantState.DBUninitialized -> {
         Surface {
@@ -60,12 +93,30 @@ fun AppRoot(
         }
     }
 
-    is PlantState.Active -> ActiveHost(state, pendingDelete, onIntent)
+    is PlantState.Active -> ActiveHost(
+        median = median,
+        speciesStatsFlow = speciesStatsFlow,
+        speciesList = speciesList,
+        onGetEvaporatedForSpecies = onGetEvaporatedForSpecies,
+        onGetPlantsWithMinWeight = onGetPlantsWithMinWeight,
+        state = state,
+        pendingDelete = pendingDelete,
+        onIntent = onIntent,
+        onGetMonthlyStats = onGetMonthlyStats,
+    )
 }
 
 @Composable
 private fun ActiveHost(
-    state: PlantState.Active, pendingDelete: PendingDelete?, onIntent: (PlantIntent) -> Unit
+    median: Flow<Double>,
+    speciesStatsFlow: Flow<List<SpeciesMeasurementStats>>,
+    speciesList: List<Species>,
+    onGetEvaporatedForSpecies: (Long) -> Flow<Double>,
+    onGetPlantsWithMinWeight: (Double) -> Flow<List<PlantPeakWeight>>,
+    state: PlantState.Active,
+    pendingDelete: PendingDelete?,
+    onIntent: (PlantIntent) -> Unit,
+    onGetMonthlyStats: (Long, Long) -> Flow<List<MonthlyStatItem>>
 ) {
     val holder = rememberSaveableStateHolder()
     val screen = state.screen()
@@ -77,16 +128,15 @@ private fun ActiveHost(
 
             is PlantState.Creating -> AddPlantScreen(
                 form = screen.form,
-                onIntent = onIntent,
-                onAddPhoto = { TODO() },
+                onBack = { onIntent(PlantIntent.Back) },
+                onAddPhoto = { uri -> onIntent(PlantIntent.Creating.AddPhoto(uri)) },
                 onToggleDropdown = { expanded -> onIntent(ToggleDropdown(expanded)) },
-                selectedSpeciesName = screen.speciesList.find { it.id == screen.form.selectedSpecies?.id }?.latinName,
                 speciesList = screen.speciesList,
-                onSelectSpecies = { speciesId ->
-                    val species = screen.speciesList.find { it.id == speciesId }
-                    onIntent(SelectSpecies(species))
-                }
+                onSelectionChange = { selection -> onIntent(SelectSpecies(selection)) },
+                onUnknownSpecies = { onIntent(PlantIntent.Creating.UnknownSpecies) },
+                onSave = { onIntent(PlantIntent.Creating.Save) }
             )
+
             is PlantState.Species -> SpeciesScreen(screen.species) { onIntent(PlantIntent.Back) }
             is PlantState.Details.HistoryMeas -> HistoryMeasScreen(
                 onBack = { onIntent(PlantIntent.Back) },
@@ -94,15 +144,12 @@ private fun ActiveHost(
                 elements = screen.elements,
                 onEdit = { item ->
                     onIntent(
-                        PlantIntent.Details.StartEditingMeasurement(
-                            item.id,
-                            item.formattedWeight,
-                            item.timestamp
+                        StartEditingMeasurement(
+                            item.id, item.formattedWeight, item.timestamp
                         )
                     )
                 },
-                onDelete = { item -> onIntent(PlantIntent.Details.DeleteMeasurement(item.id)) }
-            )
+                onDelete = { item -> onIntent(DeleteMeasurement(item.id)) })
 
             is PlantState.Details.HistoryWaters -> HistoryWatersScreen(
                 onBack = { onIntent(PlantIntent.Back) },
@@ -110,15 +157,12 @@ private fun ActiveHost(
                 elements = screen.elements,
                 onEdit = { item ->
                     onIntent(
-                        PlantIntent.Details.StartEditingWatering(
-                            item.id,
-                            item.formattedVolume,
-                            item.timestamp
+                        StartEditingWatering(
+                            item.id, item.formattedVolume, item.timestamp
                         )
                     )
                 },
-                onDelete = { item -> onIntent(PlantIntent.Details.DeleteWatering(item.id)) }
-            )
+                onDelete = { item -> onIntent(DeleteWatering(item.id)) })
 
             is PlantState.Details.Plant -> PlantScreen(
                 plant = screen, modal = state as? PlantState.PlantModal, onIntent = onIntent
@@ -130,6 +174,14 @@ private fun ActiveHost(
                 onIntent = onIntent,
             )
 
+            is PlantState.Analytics -> AnalyticsScreen(
+                globalMedianFlow = median,
+                speciesStatsFlow = speciesStatsFlow,
+                speciesList = speciesList,
+                onGetEvaporatedForSpecies = onGetEvaporatedForSpecies,
+                onGetPlantsWithMinWeight = onGetPlantsWithMinWeight,
+                onGetMonthlyStats = onGetMonthlyStats,
+                onBack = { onIntent(PlantIntent.Back) })
         }
     }
 }
@@ -156,6 +208,7 @@ private fun OverviewHost(
         onImport = { uri -> onIntent(PlantIntent.ImportCsv(uri)) },
         pendingDelete = pendingDelete,
         onUndoDelete = { onIntent(PlantIntent.Overview.Deletion.Undo) },
+        onOpenAnalytics = { onIntent(PlantIntent.Overview.OpenAnalytics) },
     )
 }
 
@@ -171,4 +224,6 @@ private fun PlantState.Screen.key(): Any = when (this) {
     is PlantState.Overview -> "overview"
     is PlantState.Creating -> "creating"
     is PlantState.Species -> "species"
-    is PlantState.Details.History -> "hist:${plant.id.value}"}
+    is PlantState.Details.History -> "hist:${plant.id.value}"
+    is PlantState.Analytics -> "anal"
+}

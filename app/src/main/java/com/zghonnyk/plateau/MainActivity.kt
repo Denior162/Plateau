@@ -42,7 +42,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val send = remember { { intent: PlantIntent -> viewModel.onIntent(intent, Instant.now()) } }
-                BackAwareAppRoot(state = state, pendingDelete = pendingDelete, onIntent = send)
+                BackAwareAppRoot(
+                    median = viewModel.getGlobalMedian(),
+                    speciesStatsFlow = viewModel.getSpeciesMeasurementStats(),
+                    speciesList = viewModel.getSpeciesList(),
+                    onGetEvaporatedForSpecies = { viewModel.getTotalEvaporatedBySpecies(it) },
+                    onGetPlantsWithMinWeight = { viewModel.getPlantsWithMinPeakWeight(it) },
+                    state = state,
+                    pendingDelete = pendingDelete,
+                    onIntent = send,
+                    onGetMonthlyStats = { lng, lng1 -> viewModel.getMonthlyStats() }
+                )
             }
         }
     }

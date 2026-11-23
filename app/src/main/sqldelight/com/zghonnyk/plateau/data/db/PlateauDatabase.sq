@@ -114,6 +114,25 @@ CREATE TABLE soil_addition_events (
 );
 
 CREATE INDEX idx_soil_addition_soil ON soil_addition_events(soil_id);
+insertPhoto:
+INSERT INTO plant_photos(plant_id, timestamp, file_path, caption)
+VALUES (?, ?, ?, ?);
+
+selectPhotosByPlant:
+SELECT * FROM plant_photos WHERE plant_id = ? ORDER BY timestamp DESC;
+
+selectAllPhotos:
+SELECT * FROM plant_photos ORDER BY timestamp DESC;
+
+selectLatestPhotoPerPlant:
+SELECT * FROM plant_photos
+WHERE id IN (SELECT MAX(id) FROM plant_photos GROUP BY plant_id);
+
+deletePhoto:
+DELETE FROM plant_photos WHERE id = ?;
+
+updatePhotoCaption:
+UPDATE plant_photos SET caption = ? WHERE id = ?;
 
 selectAllSpecies:
 SELECT * FROM species ORDER BY name ASC;
@@ -134,6 +153,9 @@ ORDER BY plants.id DESC;
 insertPlant:
 INSERT INTO plants (name, species_id, acquisition_date)
 VALUES (?, ?, ?);
+
+selectLastInsertRowId:
+SELECT last_insert_rowid();
 
 deletePlant:
 DELETE FROM plants WHERE id = ?;
@@ -273,3 +295,100 @@ UPDATE measurements SET timestamp = :new WHERE plant_id = :plantId AND timestamp
 
 updateMeasurementWeightAndTime:
 UPDATE measurements SET weight_grams = :weightGrams, timestamp = :timestamp WHERE id = :id;
+
+getTotalEvaporatedBySpecies:
+WITH WeightDrops AS (
+    SELECT
+        m.plant_id,
+        m.weight_grams AS current_weight,
+        (SELECT m_prev.weight_grams
+         FROM measurements m_prev
+         WHERE m_prev.plant_id = m.plant_id
+           AND m_prev.timestamp < m.timestamp
+           AND m_prev.excluded = 0
+         ORDER BY m_prev.timestamp DESC LIMIT 1) AS prev_weight
+    FROM measurements m
+    WHERE m.excluded = 0
+)
+SELECT COALESCE(ROUND(SUM(wd.prev_weight - wd.current_weight), 1), 0.0) AS total_evaporated_grams
+FROM WeightDrops wd
+JOIN plants p ON wd.plant_id = p.id
+JOIN species s ON p.species_id = s.id
+WHERE s.id = :speciesId
+  AND p.archived_at IS NULL
+  AND wd.prev_weight > wd.current_weight;
+
+  getPlantsWithMinPeakWeight:
+  SELECT
+      p.id,
+      p.name AS plant_name,
+      s.name AS species_name,
+      MAX(m.weight_grams) AS peak_weight,
+      COUNT(m.id) AS total_measurements
+  FROM plants p
+  LEFT JOIN species s ON p.species_id = s.id
+  JOIN measurements m ON p.id = m.plant_id
+  WHERE m.excluded = 0
+    AND p.archived_at IS NULL
+  GROUP BY p.id, p.name, s.name
+  HAVING MAX(m.weight_grams) >= :minWeight
+  ORDER BY peak_weight DESC;
+
+  getSpeciesMeasurementStats:
+  SELECT
+      s.name AS species_name,
+      COUNT(DISTINCT p.id) AS active_plants_count,
+      COUNT(m.id) AS total_measurements,
+      ROUND(AVG(m.weight_grams), 1) AS avg_weight_grams,
+      MAX(m.weight_grams) AS max_weight_grams
+  FROM species s
+  JOIN plants p ON p.species_id = s.id
+  JOIN measurements m ON m.plant_id = p.id
+  WHERE m.excluded = 0
+    AND p.archived_at IS NULL
+  GROUP BY s.id, s.name
+  HAVING COUNT(m.id) >= 2
+  ORDER BY active_plants_count DESC, total_measurements DESC;
+
+  getGlobalMedianDailyEvaporation:
+  WITH MeasurementLags AS (
+      SELECT
+          m.plant_id,
+          m.weight_grams AS current_weight,
+          m.timestamp AS current_ts,
+          LAG(m.weight_grams) OVER (PARTITION BY m.plant_id ORDER BY m.timestamp) AS prev_weight,
+          LAG(m.timestamp) OVER (PARTITION BY m.plant_id ORDER BY m.timestamp) AS prev_ts
+      FROM measurements m
+      WHERE m.excluded = 0
+  ),
+  DailyRates AS (
+      SELECT
+          (ml.prev_weight - ml.current_weight) / (CAST(ml.current_ts - ml.prev_ts AS REAL) / 86400000.0) AS rate_per_day
+      FROM MeasurementLags ml
+      JOIN plants p ON ml.plant_id = p.id
+      JOIN species s ON p.species_id = s.id
+      WHERE ml.prev_weight > ml.current_weight
+              AND ml.current_ts > ml.prev_ts
+        AND p.archived_at IS NULL
+  ),
+  OrderedRates AS (
+      SELECT
+          rate_per_day,
+          ROW_NUMBER() OVER (ORDER BY rate_per_day) AS rn,
+          COUNT(*) OVER () AS total_count
+      FROM DailyRates
+  )
+  SELECT COALESCE(ROUND(AVG(rate_per_day), 1), 0.0) AS median_evaporation_per_day
+  FROM OrderedRates
+  WHERE rn IN ((total_count + 1) / 2, (total_count + 2) / 2);
+
+  getMonthlyMeasurementStats:
+  SELECT
+      strftime('%Y-%m', m.timestamp / 1000, 'unixepoch', 'localtime') AS month_year,
+      COUNT(m.id) AS total_measurements,
+      ROUND(AVG(m.weight_grams), 1) AS avg_weight_grams,
+      MAX(m.weight_grams) AS max_weight_recorded
+  FROM measurements m
+  WHERE m.excluded = 0
+  GROUP BY month_year
+  ORDER BY month_year DESC;

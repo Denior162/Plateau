@@ -83,6 +83,7 @@ fun PotsScreen(
     onSelectSpecies: (Long?) -> Unit,
     pendingDelete: PendingDelete?,
     onUndoDelete: () -> Unit,
+    onOpenAnalytics: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val lazyListState = rememberLazyListState()
@@ -100,8 +101,10 @@ fun PotsScreen(
             PlantsTopBar(
                 scrollBehavior = scrollBehavior,
                 onExport = onExport,
-                onImport = onImport
+                onImport = onImport,
+                onOpenAnalytics = onOpenAnalytics
             )
+
         },
         floatingActionButton = {
             AddPlantFab(
@@ -110,17 +113,18 @@ fun PotsScreen(
         }
     ) { innerPadding ->
         PotsContent(
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(horizontal = spacing.large),
-            plants = plants,
-            pendingDelete = pendingDelete,
-            onSelect = onSelect,
-            onEdit = onEdit,
-            onDelete = onDelete,
-            onUndoDelete = onUndoDelete,
-            lazyListState = lazyListState
-        )
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .padding(horizontal = spacing.large),
+                plants = plants,
+                pendingDelete = pendingDelete,
+                onSelect = onSelect,
+                onEdit = onEdit,
+                onDelete = onDelete,
+                onUndoDelete = onUndoDelete,
+                lazyListState = lazyListState
+            )
+
 
         if (editingPlant != null) {
             val focusRequester = remember { FocusRequester() }
@@ -253,15 +257,27 @@ private fun CsvMenuPreview() = CsvMenu(onExport = {}, onImport = {})
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlantsTopBar(
-
-    onExport: (Uri) -> Unit, onImport: (Uri) -> Unit, scrollBehavior: TopAppBarScrollBehavior
+    onExport: (Uri) -> Unit,
+    onImport: (Uri) -> Unit,
+    onOpenAnalytics: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior
 ) = CenterAlignedTopAppBar(
-    title = { Text(stringResource(R.string.app_name)) }, actions = {
+    title = { Text(stringResource(R.string.app_name)) },
+    navigationIcon = {
+        IconButton(onClick = onOpenAnalytics) {
+            Icon(
+                painter = painterResource(R.drawable.analytics),
+                contentDescription = "Аналітика"
+            )
+        }
+    },
+    actions = {
         CsvMenuActions(
             onExport = onExport,
             onImport = onImport,
         )
-    }, scrollBehavior = scrollBehavior
+    },
+    scrollBehavior = scrollBehavior
 )
 
 @Composable
@@ -299,6 +315,14 @@ fun PotsContent(
         val cardState = pendingDelete?.takeIf { it.plantId == plant.id }
             ?.let { PlantCardState.Deletion(it.progress) } ?: PlantCardState.Default
 
+        fun Long.formatElapsedTime(): String {
+            return if (this >= 24) {
+                "${this / 24} d"
+            } else {
+                "$this h"
+            }
+        }
+
         OnePlantItem(
             plantName = plant.name,
             plantSpecieName = plant.latinName,
@@ -308,10 +332,11 @@ fun PotsContent(
             onEdit = { onEdit(plant.id) },
             onDelete = { onDelete(plant.id) },
             onUndoDelete = onUndoDelete,
-            elapsedSinceLastWeighing = plant.hoursLeft.toString()
+            elapsedSinceLastWeighing = plant.hoursLeft?.formatElapsedTime()
         )
     }
 }
+
 
 sealed class OnePlantItemState {
 
@@ -342,7 +367,7 @@ sealed interface PlantCardState {
 fun OnePlantItem(
     plantName: String,
     plantSpecieName: String,
-    elapsedSinceLastWeighing: String,
+    elapsedSinceLastWeighing: String?,
     state: PlantCardState,
     isReadyForAction: Boolean,
     onSelect: () -> Unit,
@@ -400,7 +425,7 @@ fun OnePlantItem(
 private fun PlantCard(
     name: String,
     species: String,
-    elapsedSinceLastWeighing: String,
+    elapsedSinceLastWeighing: String?,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)?,
     isReadyForAction: Boolean,
@@ -421,7 +446,9 @@ private fun PlantCard(
             Column(verticalArrangement = Arrangement.Center) {
                 Text(name, style = MaterialTheme.typography.bodyLarge)
                 Text(species, style = MaterialTheme.typography.bodyMedium)
-                Text(elapsedSinceLastWeighing)
+                if (elapsedSinceLastWeighing != null) {
+                    Text(elapsedSinceLastWeighing)
+                }
             }
         }
         bottom()

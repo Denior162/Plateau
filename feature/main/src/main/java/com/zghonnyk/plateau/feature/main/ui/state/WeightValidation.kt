@@ -6,15 +6,6 @@ import com.zghonnyk.domain.Prediction
 import com.zghonnyk.plateau.feature.main.R
 import kotlin.math.roundToInt
 
-
-sealed interface WeightWarning {
-    data object NotANumber : WeightWarning
-    data object NotPositive : WeightWarning
-    data object Absurd : WeightWarning
-    data class OutOfRange(val range: ClosedFloatingPointRange<Double>, val heavy: Boolean) :
-        WeightWarning
-}
-
 fun Prediction.range() = low..high
 @Composable
 fun Prediction.placeholderText(): String {

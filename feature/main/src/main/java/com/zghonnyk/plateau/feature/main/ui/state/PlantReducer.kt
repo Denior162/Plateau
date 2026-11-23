@@ -1,6 +1,10 @@
 package com.zghonnyk.plateau.feature.main.ui.state
 
 import androidx.compose.foundation.text.input.TextFieldState
+import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.History
+import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryMeas
+import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryWaters
+import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.Plant
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.AddMeasurement
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditMeasurement
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditPlant
@@ -34,6 +38,7 @@ fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
         is S.Details.History -> state.reduce(intent)
         else -> state
     }
+
     is I.LoggingWatering -> if (state is LogWatering) state.reduce(intent) else state
 
 
@@ -43,6 +48,7 @@ fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
         is HistoryModal.EditMeasurement -> state.reduce(intent)
         else -> state
     }
+
     is I.EditingWatering -> if (state is HistoryModal.EditWatering) state.reduce(intent) else state
 
     is I.Pruning -> if (state is Pruning) state.reduce(intent) else state
@@ -53,7 +59,10 @@ private fun HistoryModal.EditMeasurement.reduce(i: I.EditingMeasurement): S.Acti
     I.EditingMeasurement.Save -> parent
     I.EditingMeasurement.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
     I.EditingMeasurement.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
-    is I.EditingMeasurement.SetTimestamp -> copy(timestamp = i.timestamp, isDateTimePickerOpen = false)
+    is I.EditingMeasurement.SetTimestamp -> copy(
+        timestamp = i.timestamp,
+        isDateTimePickerOpen = false
+    )
 }
 
 inline fun <reified T : S.Active> S.Active.reduceIf(
@@ -62,6 +71,7 @@ inline fun <reified T : S.Active> S.Active.reduceIf(
     is T -> transform()
     else -> this
 }
+
 private fun S.PlantModal.Repotting.reduce(i: I.Repotting): S.Active = when (i) {
     I.Repotting.Save -> parent
     I.Repotting.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
@@ -77,6 +87,7 @@ private fun Pruning.reduce(i: I.Pruning): S.Active = when (i) {
     is I.Pruning.SetPruningTimestamp ->
         copy(customTimestamp = i.timestamp, isDateTimePickerOpen = false)
 }
+
 private fun S.Details.History.reduce(i: I.Details): S.Active = when (i) {
     is I.Details.StartEditingMeasurement -> HistoryModal.EditMeasurement(
         parent = this,
@@ -96,6 +107,7 @@ private fun S.Details.History.reduce(i: I.Details): S.Active = when (i) {
 
     else -> this
 }
+
 private fun S.Overview.reduce(i: I.Overview): S.Active = when (i) {
     I.Overview.OpenAddPlant -> S.Creating(
         parent = this,
@@ -105,7 +117,7 @@ private fun S.Overview.reduce(i: I.Overview): S.Active = when (i) {
     is I.Overview.SelectPlant ->
         plants.indexOfFirst { it.id == i.plantId }
             .takeIf { it != -1 }
-            ?.let { S.Details.Plant(VectorZipper(it, plants)) }
+            ?.let { Plant(VectorZipper(it, plants)) }
             ?: this
 
     is I.Overview.StartEditingPlantName ->
@@ -121,18 +133,37 @@ private fun S.Overview.reduce(i: I.Overview): S.Active = when (i) {
         } ?: this
 
     is I.Overview.Deletion -> this
+    I.Overview.OpenAnalytics -> S.Analytics(parent = this)
 }
 
 private fun S.EditingName.reduce(i: I.EditingName): S.Active = when (i) {
     I.EditingName.Save -> parent
     is I.EditingName.ToggleDropdown -> copy(isDropdownExpanded = i.expanded)
-    is I.EditingName.SelectSpecies -> copy(selectedSpeciesId = i.speciesId, isDropdownExpanded = false)
+    is I.EditingName.SelectSpecies -> copy(
+        selectedSpeciesId = i.speciesId,
+        isDropdownExpanded = false
+    )
 }
 
 private fun S.Creating.reduce(i: I.Creating): S.Active = when (i) {
     I.Creating.Save -> parent
     is I.Creating.ToggleDropdown -> copy(form = form.copy(isDropdownExpanded = i.expanded))
-    is I.Creating.SelectSpecies -> copy(form = form.copy(selectedSpecies = i.species, isDropdownExpanded = false))
+    is I.Creating.SelectSpecies -> copy(
+        form = form.copy(
+            speciesSelection = i.selection,
+            isDropdownExpanded = false
+        )
+    )
+
+    I.Creating.UnknownSpecies -> copy(
+        form = form.copy(
+            speciesSelection = SpeciesSelection.Unknown,
+            isDropdownExpanded = false
+        )
+    )
+
+    is I.Creating.AddPhoto -> this
+    is I.Creating.AddPhotoCopied -> copy(form = form.copy(photoPath = i.relativePath))
 }
 
 private fun S.Details.Plant.reduce(i: I.Details): S.Active = when (i) {
@@ -187,14 +218,20 @@ private fun LogWatering.reduce(i: I.LoggingWatering): S.Active = when (i) {
 private fun EditPlant.reduce(i: I.EditingPlant): S.Active = when (i) {
     I.EditingPlant.Save -> parent
     is I.EditingPlant.ToggleDropdown -> copy(isDropdownExpanded = i.expanded)
-    is I.EditingPlant.SelectSpecies -> copy(selectedSpeciesId = i.speciesId, isDropdownExpanded = false)
+    is I.EditingPlant.SelectSpecies -> copy(
+        selectedSpeciesId = i.speciesId,
+        isDropdownExpanded = false
+    )
 }
 
 private fun EditMeasurement.reduce(i: I.EditingMeasurement): S.Active = when (i) {
     I.EditingMeasurement.Save -> parent
     I.EditingMeasurement.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
     I.EditingMeasurement.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
-    is I.EditingMeasurement.SetTimestamp -> copy(timestamp = i.timestamp, isDateTimePickerOpen = false)
+    is I.EditingMeasurement.SetTimestamp -> copy(
+        timestamp = i.timestamp,
+        isDateTimePickerOpen = false
+    )
 }
 
 private fun HistoryModal.EditWatering.reduce(i: I.EditingWatering): S.Active = when (i) {
@@ -241,7 +278,9 @@ fun applyPlants(current: S, plants: List<PlantUi>): S = when (current) {
 
 private fun S.Active.withPlants(plants: List<PlantUi>): S.Active {
     if (plants.isEmpty()) {
-        return if (this is S.Creating) copy(parent = S.Overview(emptyList())) else S.Overview(emptyList())
+        return if (this is S.Creating) copy(parent = S.Overview(emptyList())) else S.Overview(
+            emptyList()
+        )
     }
     return when (this) {
         is S.Overview -> copy(plants = plants)
@@ -253,9 +292,9 @@ private fun S.Active.withPlants(plants: List<PlantUi>): S.Active {
         is S.Creating -> copy(parent = parent.copy(plants = plants))
         is S.Species -> copy(parent = parent.copy(plants = plants))
 
-        is S.Details.Plant -> refocused(plants)
-        is S.Details.HistoryMeas -> parent.rebased(plants) { copy(parent = it) }
-        is S.Details.HistoryWaters -> parent.rebased(plants) { copy(parent = it) }
+        is Plant -> refocused(plants)
+        is HistoryMeas -> parent.rebased(plants) { copy(parent = it) }
+        is HistoryWaters -> parent.rebased(plants) { copy(parent = it) }
 
         is AddMeasurement -> parent.rebased(plants) { copy(parent = it) }
         is LogWatering -> parent.rebased(plants) { copy(parent = it) }
@@ -263,14 +302,17 @@ private fun S.Active.withPlants(plants: List<PlantUi>): S.Active {
         is EditPlant -> parent.rebased(plants) { copy(parent = it) }
         is Pruning -> parent.rebased(plants) { copy(parent = it) }
         is Repotting -> parent.rebased(plants) { copy(parent = it) }
-        is S.Details.History -> parent.rebased(plants) { copy(parent = it) }
+        is History -> parent.rebased(plants) { copy(parent = it) }
         is HistoryModal -> parent.parent.rebased(plants) { rebasedPlant ->
-            val newHistory = S.Details.History(rebasedPlant)
+            val newHistory = History(rebasedPlant)
             when (this) {
                 is HistoryModal.EditMeasurement -> copy(parent = newHistory)
                 is HistoryModal.EditWatering -> copy(parent = newHistory)
             }
-        }    }
+        }
+
+        is S.Analytics -> copy(parent = parent.copy(plants = plants))
+    }
 }
 
 /** Фокус остаётся на том же растении; если оно исчезло — на соседнем (как раньше). */

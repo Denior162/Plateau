@@ -28,5 +28,6 @@
     <string name="weight_after_pruning">Weight after pruning</string>
     <string name="prune_dialog_title">After the prune, the cycle will be updated. From the previous cycle only substrate moisture will be taken into account.</string>
     <string name="add_picture">Add picture</string>
+    <string name="go_back">Go back</string>
 
 </resources>

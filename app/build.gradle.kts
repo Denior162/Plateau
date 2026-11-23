@@ -12,10 +12,10 @@ android {
 
     defaultConfig {
         applicationId = "com.zghonnyk.plateau"
-        minSdk = 31
+        minSdk = 30
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 7
+        versionName = "1.0.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

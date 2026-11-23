@@ -19,9 +19,15 @@ sealed interface PlantState {
 
     sealed interface Screen : Active
 
+
     sealed interface Modal : Active {
         override val parent: Screen
     }
+
+    @Immutable
+    data class Analytics(
+        override val parent: Overview,
+    ) : Screen
 
     @Immutable
     data class Overview(val plants: List<PlantUi>) : Screen {
@@ -185,6 +191,8 @@ sealed interface PlantIntent {
     }
 
     sealed interface Overview : PlantIntent {
+
+        data object OpenAnalytics : Overview
         data class SelectPlant(val plantId: PlantId) : Overview
         data object OpenAddPlant : Overview
         data class StartEditingPlantName(val plantId: PlantId) : Overview
@@ -202,14 +210,15 @@ sealed interface PlantIntent {
         data class SelectSpecies(val speciesId: Long?) : EditingName
     }
 
-    // PlantState.Creating
     sealed interface Creating : PlantIntent {
         data object Save : Creating
         data class ToggleDropdown(val expanded: Boolean) : Creating
-        data class SelectSpecies(val species: DomainSpecies?) : Creating
+        data class SelectSpecies(val selection: SpeciesSelection) : Creating
+        data object UnknownSpecies : Creating
+        data class AddPhoto(val uri: Uri) : Creating
+        data class AddPhotoCopied(val relativePath: String) : Creating
     }
 
-    // PlantState.Details.Plant
     sealed interface Details : PlantIntent {
         data object GoLeft : Details
         data object GoRight : Details

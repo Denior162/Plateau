@@ -101,12 +101,17 @@ data class Moisture(
     val percent: Double,
     val tare: Tare
 )
-
 data class AddPlantForm(
-    val photoUri: String? = null,
     val searchQuery: TextFieldState = TextFieldState(""),
     val customName: TextFieldState = TextFieldState(""),
     val weightInput: TextFieldState = TextFieldState(""),
     val isDropdownExpanded: Boolean = false,
-    val selectedSpecies: Species? = null
+    val speciesSelection: SpeciesSelection = SpeciesSelection.Unselected,
+    val photoPath: String? = null
 )
+
+sealed interface SpeciesSelection {
+    data object Unselected : SpeciesSelection
+    data object Unknown : SpeciesSelection
+    data class Selected(val species: Species) : SpeciesSelection
+}

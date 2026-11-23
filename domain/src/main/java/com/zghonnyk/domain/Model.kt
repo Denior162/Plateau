@@ -134,3 +134,26 @@ data class PhaseBreak(
 ) : TimelineEntry {
     override val key: String = "b:$id"
 }
+
+data class SpeciesMeasurementStats(
+    val speciesName: String,
+    val activePlantsCount: Long,
+    val totalMeasurements: Long,
+    val avgWeightGrams: Double?,
+    val maxWeightGrams: Double?
+)
+
+data class PlantPeakWeight(
+    val id: PlantId,
+    val plantName: String,
+    val speciesName: String?,
+    val peakWeight: Double?,
+    val totalMeasurements: Long
+)
+
+data class MonthlyStatItem(
+    val monthYear: String,
+    val totalMeasurements: Long,
+    val avgWeightGrams: Double?,
+    val maxWeightRecorded: Double?
+)

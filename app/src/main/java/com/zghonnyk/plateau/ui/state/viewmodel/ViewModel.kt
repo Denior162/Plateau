@@ -1,6 +1,7 @@
 package com.zghonnyk.plateau.ui.state.viewmodel
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -12,13 +13,16 @@ import com.zghonnyk.domain.DryingConfig
 import com.zghonnyk.domain.DryingForecast
 import com.zghonnyk.domain.Measurement
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.MonthlyStatItem
 import com.zghonnyk.domain.PlantId
+import com.zghonnyk.domain.PlantPeakWeight
 import com.zghonnyk.domain.PlantTemporalEvent
 import com.zghonnyk.domain.PotId
 import com.zghonnyk.domain.PruningEvent
 import com.zghonnyk.domain.PruningEventId
 import com.zghonnyk.domain.RepottingEvent
 import com.zghonnyk.domain.RepottingEventId
+import com.zghonnyk.domain.SpeciesMeasurementStats
 import com.zghonnyk.domain.Tare
 import com.zghonnyk.domain.WateringEvent
 import com.zghonnyk.domain.WateringEventId
@@ -39,7 +43,6 @@ import com.zghonnyk.plateau.data.repository.fetchAllSpecies
 import com.zghonnyk.plateau.data.repository.fetchMeasurementsForPlant
 import com.zghonnyk.plateau.data.repository.fetchWateringsForPlant
 import com.zghonnyk.plateau.data.repository.insertNewMeasurement
-import com.zghonnyk.plateau.data.repository.insertNewPlant
 import com.zghonnyk.plateau.data.repository.insertNewPruning
 import com.zghonnyk.plateau.data.repository.insertNewRepotting
 import com.zghonnyk.plateau.data.repository.insertNewWatering
@@ -47,11 +50,17 @@ import com.zghonnyk.plateau.data.repository.observeAllMeasurements
 import com.zghonnyk.plateau.data.repository.observeAllPrunings
 import com.zghonnyk.plateau.data.repository.observeAllRepottings
 import com.zghonnyk.plateau.data.repository.observeAllWaterings
+import com.zghonnyk.plateau.data.repository.observeGlobalMedianEvaporation
+import com.zghonnyk.plateau.data.repository.observeMonthlyStats
+import com.zghonnyk.plateau.data.repository.observePlantsWithMinPeakWeight
 import com.zghonnyk.plateau.data.repository.observePlantsWithSpecies
+import com.zghonnyk.plateau.data.repository.observeSpeciesMeasurementStats
+import com.zghonnyk.plateau.data.repository.observeTotalEvaporatedBySpecies
 import com.zghonnyk.plateau.data.repository.removePlant
 import com.zghonnyk.plateau.data.repository.updateMeasurement
 import com.zghonnyk.plateau.data.repository.updatePlant
 import com.zghonnyk.plateau.data.toDomain
+import com.zghonnyk.plateau.di.PlantDeps
 import com.zghonnyk.plateau.domain.importBackup
 import com.zghonnyk.plateau.domain.parseBackup
 import com.zghonnyk.plateau.domain.toCsv
@@ -64,6 +73,7 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.Plant
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
+import com.zghonnyk.plateau.feature.main.ui.state.SpeciesSelection
 import com.zghonnyk.plateau.feature.main.ui.state.applyPlants
 import com.zghonnyk.plateau.feature.main.ui.state.reducePlantState
 import kotlinx.coroutines.Dispatchers
@@ -80,8 +90,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.InputStream
-import java.io.OutputStream
 import java.time.Instant
 import java.time.Instant.now
 import java.time.YearMonth
@@ -97,8 +105,7 @@ import kotlin.time.toJavaDuration
 
 class PlantsViewModel(
     private val database: PlateauDatabase,
-    private val openOut: (Uri) -> OutputStream?,
-    private val openIn: (Uri) -> InputStream?,
+    private val deps: PlantDeps,
     initialNow: Instant,
 ) : ViewModel() {
     private val _now = MutableStateFlow(initialNow)
@@ -122,32 +129,46 @@ class PlantsViewModel(
     val pendingDelete: StateFlow<PendingDelete?> = _pendingDelete.asStateFlow()
 
     private var deleteJob: Job? = null
-
-    private val _messages = Channel<String>(Channel.BUFFERED)
-
     private fun exportCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             val msg = runCatching {
-                val out = openOut(uri) ?: error("не удалось открыть файл")
+                val out = deps.openOut(uri) ?: error("не удалось открыть файл")
                 out.bufferedWriter(Charsets.UTF_8).use { it.write(toCsv(exportRows(database))) }
             }.fold({ "Экспорт готов" }, { "Ошибка экспорта: ${it.message}" })
-            _messages.send(msg)
+            _effects.send(PlantEffect.ShowMessage(msg))
         }
     }
 
     fun importCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             val msg = runCatching {
-                val input = openIn(uri) ?: error("не удалось открыть файл")
+                val input = deps.openIn(uri) ?: error("не удалось открыть файл")
                 val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 importBackup(database, parseBackup(text))
             }.fold(
                 { "Растений: +${it.plantsAdded}, замеров: +${it.measurementsAdded}, дублей пропущено: ${it.measurementsSkipped}" },
                 { "Ошибка импорта: ${it.message}" },
             )
-            _messages.send(msg)
+            _effects.send(PlantEffect.ShowMessage(msg))
         }
     }
+
+    fun getGlobalMedian(): Flow<Double> =
+        observeGlobalMedianEvaporation(database).flowOn(Dispatchers.IO)
+    fun getSpeciesMeasurementStats(): Flow<List<SpeciesMeasurementStats>> =
+        observeSpeciesMeasurementStats(database).flowOn(Dispatchers.IO)
+
+    fun getPlantsWithMinPeakWeight(minWeight: Double): Flow<List<PlantPeakWeight>> =
+        observePlantsWithMinPeakWeight(database, minWeight).flowOn(Dispatchers.IO)
+
+    fun getTotalEvaporatedBySpecies(speciesId: Long): Flow<Double> =
+        observeTotalEvaporatedBySpecies(database, speciesId).flowOn(Dispatchers.IO)
+
+    fun getSpeciesList(): List<com.zghonnyk.domain.Species> =
+        fetchAllSpecies(database).map { it.toDomain() }
+
+    fun getMonthlyStats(): Flow<List<MonthlyStatItem>> =
+        observeMonthlyStats(database).flowOn(Dispatchers.IO)
 
     private val phaseAnalysisCache =
         java.util.concurrent.ConcurrentHashMap<List<Measurement>, DryingForecast>()
@@ -307,8 +328,6 @@ class PlantsViewModel(
             is PlantIntent.EditingMeasurement.Save -> saveMeasurementEdit()
             is PlantIntent.EditingName.Save -> saveEditingName()
             is PlantIntent.Overview.StartEditingPlantName -> startEditingPlantName(intent)
-//            is PlantIntent.Details.OpenMeasurementHistory -> openMeasurementHistory()
-//            is PlantIntent.Details.OpenWateringHistory -> openWateringHistory()
             is PlantIntent.Details.DeleteMeasurement -> removeMeasurement(intent.id)
             is PlantIntent.Details.CopyMonth -> copyMonth(intent.month)
             is PlantIntent.ExportCsv -> exportCsv(intent.uri)
@@ -325,10 +344,54 @@ class PlantsViewModel(
             is PlantIntent.Refresh -> Unit
             is PlantIntent.EditingWatering.Save -> saveWateringEdit()
             is PlantIntent.Details.DeleteWatering -> removeWatering(intent.id)
+            is PlantIntent.Creating.AddPhoto -> addPhoto(intent.uri)
             else -> reduce(intent)
         }
     }
 
+    private fun persist(
+        errorText: String,
+        onSuccess: () -> Unit,
+        block: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { block() } }
+                .onSuccess { onSuccess() }
+                .onFailure { _effects.send(PlantEffect.ShowMessage(errorText)) }
+        }
+    }
+
+    private fun addPhoto(uri: Uri) {
+        viewModelScope.launch {
+            runCatching { deps.copyPhoto(uri) }
+                .onSuccess { path ->
+                    Log.d("Photo", "copied: $path")
+                    (_uiState.value as? PlantState.Creating)?.form?.photoPath?.let { deps.deletePhoto(it) }
+                    reduce(PlantIntent.Creating.AddPhotoCopied(path))
+                }
+                .onFailure {
+                    Log.e("Photo", "failed to copy photo", it)
+                    _effects.send(PlantEffect.ShowMessage("Не вдалося додати фото"))
+                }
+        }
+    }
+
+    private fun savePlant() {
+        val s = _uiState.value as? PlantState.Creating ?: return
+        Log.d("Photo", "save, photoPath=${s.form.photoPath}") // ← Лог 2
+        val name = s.form.customName.text.toString().trim()
+        if (name.isEmpty()) return
+        val speciesId = when (val selection = s.form.speciesSelection) {
+            is SpeciesSelection.Selected -> selection.species.id.value
+            SpeciesSelection.Unknown -> null
+            SpeciesSelection.Unselected -> return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            deps.insertPlant(name, speciesId, now().toEpochMilli(), s.form.photoPath)
+        }
+        reduce(PlantIntent.Creating.Save)
+    }
     private fun saveWateringEdit() {
         val s = _uiState.value as? PlantState.PlantModal.HistoryModal.EditWatering ?: return
         val plantId = s.parent.plant.id.value
@@ -501,20 +564,6 @@ class PlantsViewModel(
         _uiState.update { s.parent }
     }
 
-    private fun savePlant() {
-        val s = _uiState.value as? PlantState.Creating ?: return
-        val name = s.form.customName.text.toString().trim()
-        if (name.isEmpty()) return
-        val speciesId = s.form.selectedSpecies?.id?.value
-
-        viewModelScope.launch(Dispatchers.IO) {
-            insertNewPlant(
-                database, name, speciesId, acquisitionDate = now().toEpochMilli()
-            )
-        }
-        reduce(PlantIntent.Creating.Save)
-    }
-
     private fun saveMeasurement() {
         val s = _uiState.value as? PlantState.PlantModal.AddMeasurement ?: return
         val weight = s.weightInput.text.toString().toPositiveDoubleOrNull() ?: return
@@ -635,12 +684,10 @@ class PlantsViewModel(
 
         val Factory = viewModelFactory {
             initializer {
-                val application = this[APPLICATION_KEY] as PlateauApplication
-                val resolver = application.contentResolver
+                val app = this[APPLICATION_KEY] as PlateauApplication
                 PlantsViewModel(
-                    application.container.database,
-                    openOut = { resolver.openOutputStream(it) },
-                    openIn = { resolver.openInputStream(it) },
+                    database = app.container.database,
+                    deps = app.container.plantDeps,
                     initialNow = now(),
                 )
             }

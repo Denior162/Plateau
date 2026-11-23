@@ -1,12 +1,18 @@
 package com.zghonnyk.plateau.data.repository
 
+import android.net.Uri
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
+import com.zghonnyk.domain.MonthlyStatItem
+import com.zghonnyk.domain.PlantPeakWeight
+import com.zghonnyk.domain.SpeciesMeasurementStats
 import com.zghonnyk.plateau.data.db.PlateauDatabase
 import com.zghonnyk.plateau.data.db.Watering_sessions
+import com.zghonnyk.plateau.data.toDomain
 import com.zghonnyk.plateau.domain.CsvRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 
 data class ImportSummary(
@@ -55,10 +61,30 @@ fun fetchPlantsWithSpecies(db: PlateauDatabase) =
 fun fetchMeasurementsForPlant(db: PlateauDatabase, plantId: Long) =
     db.plateauDatabaseQueries.selectMeasurementsForPlant(plantId).executeAsList()
 
-fun insertNewPlant(db: PlateauDatabase, name: String, speciesId: Long?, acquisitionDate: Long) =
-    db.plateauDatabaseQueries.insertPlant(
-        name, speciesId, acquisition_date = acquisitionDate
-    )
+fun insertNewPlant(db: PlateauDatabase): InsertPlant = { name, speciesId, acquiredAt, photoPath ->
+    db.transactionWithResult {
+        val q = db.plateauDatabaseQueries
+        q.insertPlant(name, speciesId, acquisition_date = acquiredAt)
+        val id = q.selectLastInsertRowId().executeAsOne()
+        photoPath?.let { q.insertPhoto(id, acquiredAt, it, null) }
+        id
+    }
+}
+
+typealias InsertPlant = (name: String, speciesId: Long?, acquiredAt: Long, photoPath: String?) -> Long
+typealias CopyPhoto = suspend (Uri) -> String
+typealias DeletePhoto = (String) -> Unit
+
+
+fun updateWatering(
+    db: PlateauDatabase, id: Long, plantId: Long, oldTs: Long, newTs: Long, volumeMl: Double?
+) {
+    val q = db.plateauDatabaseQueries
+    q.transaction {
+        q.updateWateringTimestamp(newTs, volumeMl, id)
+        q.moveMeasurementAt(newTs, plantId, oldTs)
+    }
+}
 
 
 fun insertNewMeasurement(db: PlateauDatabase, plantId: Long, timestamp: Long, weightGrams: Double) =
@@ -147,6 +173,21 @@ fun observeAllRepottings(db: PlateauDatabase) =
 fun observeAllSoilAdditions(db: PlateauDatabase) =
     db.plateauDatabaseQueries.selectAllSoilAdditions().asFlow().mapToList(Dispatchers.IO)
 
+fun observeAllPhotos(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectAllPhotos().asFlow().mapToList(Dispatchers.IO)
+
+fun observePhotosByPlant(db: PlateauDatabase, plantId: Long) =
+    db.plateauDatabaseQueries.selectPhotosByPlant(plantId).asFlow().mapToList(Dispatchers.IO)
+
+fun observeLatestPhotos(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectLatestPhotoPerPlant().asFlow().mapToList(Dispatchers.IO)
+
+fun insertPhoto(db: PlateauDatabase, plantId: Long, timestamp: Long, filePath: String, caption: String? = null) =
+    db.plateauDatabaseQueries.insertPhoto(plantId, timestamp, filePath, caption)
+
+fun deletePhoto(db: PlateauDatabase, id: Long) =
+    db.plateauDatabaseQueries.deletePhoto(id)
+
 fun insertNewSoilAddition(
     db: PlateauDatabase,
     plantId: Long,
@@ -167,3 +208,31 @@ fun deleteSoilAddition(db: PlateauDatabase, id: Long) =
 
 fun observeAllPots(db: PlateauDatabase) =
     db.plateauDatabaseQueries.selectAllPots().asFlow().mapToList(Dispatchers.IO)
+
+fun observeTotalEvaporatedBySpecies(db: PlateauDatabase, speciesId: Long): Flow<Double> =
+    db.plateauDatabaseQueries.getTotalEvaporatedBySpecies(speciesId)
+        .asFlow()
+        .map { it.executeAsOneOrNull() ?: 0.0 }
+
+fun observeGlobalMedianEvaporation(db: PlateauDatabase): Flow<Double> =
+    db.plateauDatabaseQueries.getGlobalMedianDailyEvaporation()
+        .asFlow()
+        .map { it.executeAsOneOrNull() ?: 0.0 }
+
+fun observeSpeciesMeasurementStats(db: PlateauDatabase): Flow<List<SpeciesMeasurementStats>> =
+    db.plateauDatabaseQueries.getSpeciesMeasurementStats()
+        .asFlow()
+        .mapToList(Dispatchers.IO)
+        .map { list -> list.map { it.toDomain() } }
+
+fun observePlantsWithMinPeakWeight(db: PlateauDatabase, minWeight: Double): Flow<List<PlantPeakWeight>> =
+    db.plateauDatabaseQueries.getPlantsWithMinPeakWeight(minWeight)
+        .asFlow()
+        .mapToList(Dispatchers.IO)
+        .map { list -> list.map { it.toDomain() } }
+
+fun observeMonthlyStats(db: PlateauDatabase): Flow<List<MonthlyStatItem>> =
+    db.plateauDatabaseQueries.getMonthlyMeasurementStats()
+        .asFlow()
+        .mapToList(Dispatchers.IO)
+        .map { list -> list.map { it.toDomain() } }
