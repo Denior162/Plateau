@@ -67,6 +67,7 @@ import com.zghonnyk.plateau.feature.main.R
 import com.zghonnyk.plateau.feature.main.ui.components.ChartPoint
 import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
 import com.zghonnyk.plateau.feature.main.ui.extentions.toMonthGroupUiModels
+import com.zghonnyk.plateau.feature.main.ui.state.Cmd
 import com.zghonnyk.plateau.feature.main.ui.state.PendingDelete
 import com.zghonnyk.plateau.feature.main.ui.state.PlantFacts
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
@@ -76,6 +77,7 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.SpeciesSelection
 import com.zghonnyk.plateau.feature.main.ui.state.applyPlants
 import com.zghonnyk.plateau.feature.main.ui.state.reducePlantState
+import com.zghonnyk.plateau.feature.main.ui.state.update
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -113,8 +115,7 @@ class PlantsViewModel(
         data class DynamicString(val value: String) : UiText
         data class Resource(
             val resId: Int, val args: List<Any> = emptyList()
-        ) : UiText {
-        }
+        ) : UiText
 
         fun asString(context: android.content.Context): String = when (this) {
             is DynamicString -> value
@@ -281,7 +282,7 @@ class PlantsViewModel(
             }
 
             val plantPhoto = photosByPlant[plant.id]?.maxByOrNull { it.timestamp }?.file_path
-            
+
             PlantFacts(
                 id = plantId,
                 name = plant.plant_name,
@@ -341,8 +342,7 @@ class PlantsViewModel(
         moisture = moisture,
         prediction = predictWeight(history = activeMeasurements, at = now, DryingConfig()),
         timeline,
-        plantPhoto
-    )
+        plantPhoto)
 
     private fun hoursBetween(from: Instant, to: Instant) =
         java.time.Duration.between(from, to).toHours()
@@ -362,8 +362,6 @@ class PlantsViewModel(
             is PlantIntent.Overview.StartEditingPlantName -> startEditingPlantName(intent)
             is PlantIntent.Details.DeleteMeasurement -> removeMeasurement(intent.id)
             is PlantIntent.Details.CopyMonth -> copyMonth(intent.month)
-            is PlantIntent.ExportCsv -> exportCsv(intent.uri)
-            is PlantIntent.ImportCsv -> importCsv(intent.uri)
             is PlantIntent.Overview.Deletion.Request -> startDelete(intent.plantId)
             is PlantIntent.Overview.Deletion.Undo -> undoDelete()
             is PlantIntent.Overview.SelectPlant -> if (_pendingDelete.value?.plantId != intent.plantId) reduce(
@@ -373,12 +371,24 @@ class PlantsViewModel(
             is PlantIntent.Pruning.Save -> savePruning()
             is PlantIntent.Repotting.Save -> saveRepotting()
             is PlantIntent.Overview.OpenAddPlant -> openAddPlant(intent)
-            is PlantIntent.Refresh -> Unit
             is PlantIntent.EditingWatering.Save -> saveWateringEdit()
             is PlantIntent.Details.DeleteWatering -> removeWatering(intent.id)
             is PlantIntent.Creating.AddPhoto -> addPhoto(intent.uri)
-            else -> reduce(intent)
+            else -> dispatch(intent)
         }
+    }
+
+    private fun dispatch(intent: PlantIntent) {
+        val s = _uiState.value as? PlantState.Active ?: return
+        val (next, cmd) = update(s, intent)
+        _uiState.value = next
+        run(cmd)
+    }
+
+    private fun run(cmd: Cmd): Unit = when (cmd) {
+        Cmd.None -> Unit
+        is Cmd.ExportCsv -> exportCsv(cmd.uri)
+        is Cmd.ImportCsv -> importCsv(cmd.uri)
     }
 
     private fun persist(
@@ -395,17 +405,17 @@ class PlantsViewModel(
     private fun addPhoto(uri: Uri) {
         viewModelScope.launch {
             runCatching { deps.copyPhoto(uri) }.onSuccess { path ->
-                    Log.d("Photo", "copied: $path")
-                    (_uiState.value as? PlantState.Creating)?.form?.photoPath?.let {
-                        deps.deletePhoto(
-                            it
-                        )
-                    }
-                    reduce(PlantIntent.Creating.AddPhotoCopied(path))
-                }.onFailure {
-                    Log.e("Photo", "failed to copy photo", it)
-                    _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_failed_to_add_photo)))
+                Log.d("Photo", "copied: $path")
+                (_uiState.value as? PlantState.Creating)?.form?.photoPath?.let {
+                    deps.deletePhoto(
+                        it
+                    )
                 }
+                reduce(PlantIntent.Creating.AddPhotoCopied(path))
+            }.onFailure {
+                Log.e("Photo", "failed to copy photo", it)
+                _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_failed_to_add_photo)))
+            }
         }
     }
 

@@ -49,6 +49,25 @@ fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
     is I.Repotting -> if (state is Repotting) state.reduce(intent) else state
 }
 
+fun update(state: S.Active, intent: I): Next = when (intent) {
+    I.Back -> Next(state.parent ?: state)
+    I.Refresh -> Next(state)
+    is I.ExportCsv -> Next(state, Cmd.ExportCsv(intent.uri))
+    is I.ImportCsv -> Next(state, Cmd.ImportCsv(intent.uri))
+    is I.Loaded -> Next(state.onLoaded(intent))
+    is I.Overview,
+    is I.Creating,
+    is I.Details,
+    is I.EditingName,
+    is I.AddingMeasurement,
+    is I.LoggingWatering,
+    is I.EditingPlant,
+    is I.EditingMeasurement,
+    is I.EditingWatering,
+    is I.Pruning,
+    is I.Repotting -> Next(reducePlantState(state, intent))
+}
+
 private fun HistoryModal.EditMeasurement.reduce(i: I.EditingMeasurement): S.Active = when (i) {
     I.EditingMeasurement.Save -> parent
     I.EditingMeasurement.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
