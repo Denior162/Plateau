@@ -79,7 +79,6 @@ import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.roundToInt
 import androidx.compose.material3.MaterialTheme as Theme
 
@@ -168,8 +167,7 @@ fun WateringDialog(
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(
             onDismiss = onCloseDateTimePicker,
-            onDateTimeSelected = onSetTimestamp,
-            initialTimestamp = null
+            onDateTimeSelected = onSetTimestamp
         )
     }
     AlertDialog(onDismissRequest = onCancel, title = { Text(stringResource(R.string.watering_dialog_title)) }, text = {
@@ -227,8 +225,7 @@ fun PruningDialog(
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(
             onDismiss = onCloseDateTimePicker,
-            onDateTimeSelected = onSetTimestamp,
-            initialTimestamp = null
+            onDateTimeSelected = onSetTimestamp
         )
     }
     AlertDialog(
@@ -344,8 +341,7 @@ fun RepottingDialog(
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(
             onDismiss = onCloseDateTimePicker,
-            onDateTimeSelected = onSetTimestamp,
-            initialTimestamp = null
+            onDateTimeSelected = onSetTimestamp
         )
     }
 
@@ -419,7 +415,7 @@ fun BottomButtonGroup(
 
     if (isDateTimePickerOpen) {
         MeasurementDateTimePicker(
-            null, onCloseDateTimePicker, onSetTimestamp
+            onCloseDateTimePicker, onSetTimestamp
         )
     }
 
@@ -880,7 +876,6 @@ fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent
         MeasurementDateTimePicker(
             onDismiss = { onIntent(PlantIntent.EditingMeasurement.CloseDateTimePicker) },
             onDateTimeSelected = { onIntent(PlantIntent.EditingMeasurement.SetTimestamp(it)) },
-            initialTimestamp = state.timestamp,
         )
     }
 }

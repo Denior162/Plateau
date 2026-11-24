@@ -1,7 +1,9 @@
 package com.zghonnyk.plateau.feature.main.ui.state
 
 import android.net.Uri
+import com.zghonnyk.domain.MeasurementId
 import com.zghonnyk.domain.PlantId
+import com.zghonnyk.domain.WateringEventId
 
 sealed interface Cmd {
     data object None : Cmd
@@ -47,6 +49,26 @@ sealed interface Cmd {
         val name: String,
         val speciesId: Long?,
     ) : Cmd
+
+    data object LoadEditingSpecies : Cmd
+    data object LoadCreatingSpecies : Cmd
+
+    data class UpdateMeasurement(
+        val measurementId: MeasurementId,
+        val weightGrams: Double,
+        val timestampMs: Long,
+    ) : Cmd
+
+    data class UpdateWatering(
+        val wateringId: WateringEventId,
+        val plantId: PlantId,
+        val oldTimestampMs: Long,
+        val newTimestampMs: Long,
+        val volumeMl: Double?,
+    ) : Cmd
+    data class DeleteMeasurement(val id: MeasurementId) : Cmd
+    data class DeleteWatering(val id: WateringEventId) : Cmd
+    data class CopyToClipboard(val label: String, val text: String) : Cmd
 }
 
 data class Next(val state: PlantState.Active, val cmd: Cmd) {

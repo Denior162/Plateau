@@ -64,19 +64,17 @@ import com.zghonnyk.plateau.domain.parseBackup
 import com.zghonnyk.plateau.domain.toCsv
 import com.zghonnyk.plateau.feature.main.R
 import com.zghonnyk.plateau.feature.main.ui.components.ChartPoint
-import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
 import com.zghonnyk.plateau.feature.main.ui.extentions.toMonthGroupUiModels
 import com.zghonnyk.plateau.feature.main.ui.state.Cmd
 import com.zghonnyk.plateau.feature.main.ui.state.PendingDelete
 import com.zghonnyk.plateau.feature.main.ui.state.PlantFacts
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Creating.AddPhotoCopied
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Loaded.CreatingSpecies
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Loaded.EditingSpecies
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.Plant
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.applyPlants
-import com.zghonnyk.plateau.feature.main.ui.state.reducePlantState
-import com.zghonnyk.plateau.feature.main.ui.state.toPositiveDoubleOrNull
 import com.zghonnyk.plateau.feature.main.ui.state.update
 import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.PlantEffect.ShowMessage
 import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.UiText.Resource
@@ -96,8 +94,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.Instant.now
-import java.time.YearMonth
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
@@ -278,7 +277,7 @@ class PlantsViewModel(
             val lastWeighedAt = phases.allMeasurementsFlattened().lastOrNull()?.timestamp
 
             val records = if (activeMeasurements.isNotEmpty()) {
-                activeMeasurements.withRates().toMonthGroupUiModels()
+                activeMeasurements.withRates().toMonthGroupUiModels(ZoneId.systemDefault())
             } else {
                 emptyList()
             }
@@ -355,18 +354,10 @@ class PlantsViewModel(
 
     fun handleIntent(intent: PlantIntent) {
         when (intent) {
-            is PlantIntent.EditingMeasurement.Save -> saveMeasurementEdit()
-            is PlantIntent.Overview.StartEditingPlantName -> startEditingPlantName(intent)
-            is PlantIntent.Details.DeleteMeasurement -> removeMeasurement(intent.id)
-            is PlantIntent.Details.CopyMonth -> copyMonth(intent.month)
             is PlantIntent.Overview.Deletion.Request -> startDelete(intent.plantId)
             is PlantIntent.Overview.Deletion.Undo -> undoDelete()
-            is PlantIntent.Overview.SelectPlant -> if (_pendingDelete.value?.plantId != intent.plantId) reduce(
-                intent
-            )
-            is PlantIntent.Overview.OpenAddPlant -> openAddPlant(intent)
-            is PlantIntent.EditingWatering.Save -> saveWateringEdit()
-            is PlantIntent.Details.DeleteWatering -> removeWatering(intent.id)
+            is PlantIntent.Overview.SelectPlant ->
+                if (_pendingDelete.value?.plantId != intent.plantId) dispatch(intent)
             else -> dispatch(intent)
         }
     }
@@ -386,6 +377,7 @@ class PlantsViewModel(
             is Cmd.SavePruning -> viewModelScope.launch(Dispatchers.IO) {
                 insertNewPruning(database, cmd.plantId.value, cmd.timestampMs, cmd.removedGrams)
             }
+
             is Cmd.SaveRepotting -> viewModelScope.launch(Dispatchers.IO) {
                 insertNewRepotting(
                     db = database,
@@ -395,30 +387,87 @@ class PlantsViewModel(
                     weightAfterGrams = cmd.weightAfterGrams,
                 )
             }
+
             is Cmd.SaveMeasurement -> viewModelScope.launch(Dispatchers.IO) {
                 insertNewMeasurement(database, cmd.plantId.value, cmd.timestampMs, cmd.weightGrams)
             }
 
             is Cmd.SaveWatering -> viewModelScope.launch(Dispatchers.IO) {
-                insertNewWatering(database, cmd.plantId.value, cmd.timestampMs, cmd.volume, cmd.weightGrams)
+                insertNewWatering(
+                    database, cmd.plantId.value, cmd.timestampMs, cmd.volume, cmd.weightGrams
+                )
             }
 
             is Cmd.SavePlant -> viewModelScope.launch(Dispatchers.IO) {
                 deps.insertPlant(cmd.name, cmd.speciesId, cmd.createdAtMs, cmd.photoPath)
             }
+
             is Cmd.CopyPhoto -> viewModelScope.launch {
-                runCatching { deps.copyPhoto(cmd.uri) }
-                    .onSuccess { path -> dispatch(AddPhotoCopied(path)) }
-                    .onFailure {
+                runCatching { deps.copyPhoto(cmd.uri) }.onSuccess { path ->
+                        dispatch(
+                            AddPhotoCopied(
+                                path
+                            )
+                        )
+                    }.onFailure {
                         _effects.send(ShowMessage(Resource(R.string.error_failed_to_add_photo)))
                     }
             }
+
             is Cmd.DeletePhoto -> viewModelScope.launch(Dispatchers.IO) { deps.deletePhoto(cmd.path) }
             is Cmd.UpdatePlant -> viewModelScope.launch(Dispatchers.IO) {
                 updatePlant(database, cmd.plantId.value, cmd.name, cmd.speciesId)
             }
+
+            Cmd.LoadEditingSpecies -> viewModelScope.launch {
+                dispatch(EditingSpecies(loadSpecies()))
+            }
+
+            Cmd.LoadCreatingSpecies -> viewModelScope.launch {
+                dispatch(CreatingSpecies(loadSpecies()))
+            }
+
+            is Cmd.UpdateMeasurement -> persist(
+                errorText = Resource(R.string.error_measurement_exists_at_time),
+                onSuccess = { dispatch(PlantIntent.EditingMeasurement.Saved) },
+                block = {
+                    updateMeasurement(database, cmd.measurementId.value, cmd.weightGrams, cmd.timestampMs)
+                },
+            )
+            is Cmd.UpdateWatering -> persist(
+                errorText = Resource(R.string.error_failed_to_save_watering),
+                onSuccess = { dispatch(PlantIntent.EditingWatering.Saved) },
+                block = {
+                    updateWatering(
+                        db = database,
+                        id = cmd.wateringId.value,
+                        plantId = cmd.plantId.value,
+                        oldTs = cmd.oldTimestampMs,
+                        newTs = cmd.newTimestampMs,
+                        volumeMl = cmd.volumeMl,
+                    )
+                },
+            )
+
+            is Cmd.DeleteMeasurement -> viewModelScope.launch(Dispatchers.IO) {
+                deleteMeasurement(database, cmd.id.value)
+            }
+            is Cmd.DeleteWatering -> viewModelScope.launch(Dispatchers.IO) {
+                database.plateauDatabaseQueries.deleteWatering(cmd.id.value)
+            }
+            is Cmd.CopyToClipboard -> _effects.trySend(PlantEffect.CopyToClipboard(cmd.label, cmd.text))
         }
     }
+
+    private suspend fun loadSpecies(): List<com.zghonnyk.domain.Species> =
+        withContext(Dispatchers.IO) {
+            fetchAllSpecies(database).map { db ->
+                com.zghonnyk.domain.Species(
+                    id = com.zghonnyk.domain.SpeciesId(db.id),
+                    latinName = db.name,
+                )
+            }
+        }
 
     private fun persist(
         errorText: UiText,
@@ -427,34 +476,10 @@ class PlantsViewModel(
     ) {
         viewModelScope.launch {
             runCatching { withContext(Dispatchers.IO) { block() } }.onSuccess { onSuccess() }
-                .onFailure { _effects.send(ShowMessage(errorText)) }
-        }
-    }
-
-    private fun saveWateringEdit() {
-        val s = _uiState.value as? PlantState.PlantModal.HistoryModal.EditWatering ?: return
-        val plantId = s.parent.plant.id.value
-        val volumeMl = s.volumeInput.text.toString().toPositiveDoubleOrNull()
-
-        val newTs = s.timestamp.toEpochMilli()
-        val oldTs = s.originalTimestamp.toEpochMilli()
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    updateWatering(
-                        db = database,
-                        id = s.wateringId.value,
-                        plantId = plantId,
-                        oldTs = oldTs,
-                        newTs = newTs,
-                        volumeMl = volumeMl
-                    )
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    _effects.send(ShowMessage(errorText))
                 }
-            }.onSuccess {
-                reduce(PlantIntent.EditingWatering.Save)
-            }.onFailure {
-                _effects.send(ShowMessage(Resource(R.string.error_failed_to_save_watering)))
-            }
         }
     }
 
@@ -466,30 +491,6 @@ class PlantsViewModel(
             q.updateWateringTimestamp(newTs, volumeMl, id)
             q.moveMeasurementAt(newTs, plantId, oldTs)
         }
-    }
-
-    private fun copyMonth(month: YearMonth) {
-        val s = _uiState.value as? Plant ?: return
-        val group = s.zipper.focus.records.find { it.month == month } ?: return
-        _effects.trySend(
-            PlantEffect.CopyToClipboard(
-                label = group.monthNameAndYearTitle, text = group.toClipboardText()
-            )
-        )
-    }
-
-    private fun removeMeasurement(id: MeasurementId) {
-        viewModelScope.launch(Dispatchers.IO) { deleteMeasurement(database, id.value) }
-    }
-
-    private fun removeWatering(id: WateringEventId) {
-        viewModelScope.launch(Dispatchers.IO) {
-            database.plateauDatabaseQueries.deleteWatering(id.value)
-        }
-    }
-
-    private fun closeModal() {
-        if (_uiState.value is PlantState.Modal) reduce(PlantIntent.Back)
     }
 
     private fun startDelete(plantId: PlantId) {
@@ -521,60 +522,6 @@ class PlantsViewModel(
 
     private fun commitDelete(plantId: PlantId) {
         viewModelScope.launch(Dispatchers.IO) { removePlant(database, plantId.value) }
-    }
-
-    private fun startEditingPlantName(intent: PlantIntent.Overview.StartEditingPlantName) {
-        reduce(intent)
-        if (_uiState.value !is PlantState.EditingName) return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val allSpecies = fetchAllSpecies(database).map { dbSpecies ->
-                com.zghonnyk.domain.Species(
-                    id = com.zghonnyk.domain.SpeciesId(dbSpecies.id), latinName = dbSpecies.name
-                )
-            }
-            reduce(PlantIntent.Loaded.EditingSpecies(allSpecies))
-        }
-    }
-
-    private fun openAddPlant(intent: PlantIntent.Overview.OpenAddPlant) {
-        reduce(intent)
-        if (_uiState.value !is PlantState.Creating) return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val allSpecies = fetchAllSpecies(database).map { it.toDomain() }
-            reduce(PlantIntent.Loaded.CreatingSpecies(allSpecies))
-        }
-    }
-
-    private fun reduce(intent: PlantIntent) = _uiState.update { s ->
-        if (s is PlantState.Active) reducePlantState(s, intent) else s
-    }
-
-    private fun saveMeasurementEdit() {
-        val (measurementId, weightInput, timestamp) = when (val s = _uiState.value) {
-            is PlantState.PlantModal.EditMeasurement -> Triple(
-                s.measurementId, s.weightInput, s.timestamp
-            )
-
-            is PlantState.PlantModal.HistoryModal.EditMeasurement -> Triple(
-                s.measurementId, s.weightInput, s.timestamp
-            )
-
-            else -> return
-        }
-        val weight = weightInput.text.toString().toPositiveDoubleOrNull() ?: return
-
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    updateMeasurement(
-                        database, measurementId.value, weight, timestamp.toEpochMilli()
-                    )
-                }
-            }.onSuccess { reduce(PlantIntent.EditingMeasurement.Save) }
-                .onFailure { _effects.send(ShowMessage(Resource(R.string.error_measurement_exists_at_time))) }
-        }
     }
 
 

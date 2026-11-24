@@ -9,7 +9,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 fun List<MeasurementWithRate>.toMonthGroupUiModels(
-    zoneId: ZoneId = ZoneId.systemDefault()
+    zoneId: ZoneId
 ): List<MonthGroupUiModel> {
     val locale = Locale.getDefault()
     return this

@@ -1,6 +1,8 @@
 package com.zghonnyk.plateau.feature.main.ui.state
 
 import androidx.compose.foundation.text.input.TextFieldState
+import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.History
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryMeas
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryWaters
@@ -14,29 +16,10 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Pruning
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Repotting
 import com.zghonnyk.vector_zipper.VectorZipper
 import java.time.Instant
+import java.time.YearMonth
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent as I
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState as S
 val S.Active.canGoBack: Boolean get() = this !is S.Overview
-
-fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
-    I.Back, I.Refresh, is I.Loaded, is I.ExportCsv, is I.ImportCsv,
-    is I.Pruning, is I.Repotting, is I.AddingMeasurement, is I.EditingPlant, is I.EditingName -> state
-
-    is I.Overview -> state.reduceIf<S.Overview> { reduce(intent) }
-    is I.Creating -> if (state is S.Creating) state.reduce(intent) else state
-    is I.Details -> when (state) {
-        is Plant -> state.reduce(intent)
-        is History -> state.reduce(intent)
-        else -> state
-    }
-    is I.LoggingWatering -> if (state is LogWatering) state.reduce(intent) else state
-    is I.EditingMeasurement -> when (state) {
-        is EditMeasurement -> state.reduce(intent)
-        is HistoryModal.EditMeasurement -> state.reduce(intent)
-        else -> state
-    }
-    is I.EditingWatering -> if (state is HistoryModal.EditWatering) state.reduce(intent) else state
-}
 
 fun update(state: S.Active, intent: I, now: Instant): Next = when (intent) {
     I.Back -> Next.just(state.parent ?: state)
@@ -51,28 +34,137 @@ fun update(state: S.Active, intent: I, now: Instant): Next = when (intent) {
     is I.LoggingWatering -> updateLoggingWatering(state, intent, now)
     is I.EditingPlant -> updateEditingPlant(state, intent)
     is I.EditingName -> updateEditingName(state, intent)
-    is I.Overview,
-    is I.Details,
-    is I.EditingMeasurement,
-    is I.EditingWatering -> Next.just(reducePlantState(state, intent))
+    is I.EditingMeasurement -> updateEditingMeasurement(state, intent)
+    is I.EditingWatering -> updateEditingWatering(state, intent)
+    is I.Overview -> updateOverview(state, intent)
+    is I.Details -> updateDetails(state, intent)
 }
 
-private fun HistoryModal.EditMeasurement.reduce(i: I.EditingMeasurement): S.Active = when (i) {
-    I.EditingMeasurement.Save -> parent
-    I.EditingMeasurement.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
-    I.EditingMeasurement.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
-    is I.EditingMeasurement.SetTimestamp -> copy(
-        timestamp = i.timestamp,
-        isDateTimePickerOpen = false
-    )
+private fun reduceDetails(state: S.Active, intent: I.Details): S.Active = when (state) {
+    is Plant -> state.reduce(intent)
+    is History -> state.reduce(intent)
+    else -> state
 }
 
-inline fun <reified T : S.Active> S.Active.reduceIf(
-    crossinline transform: T.() -> S.Active
-): S.Active = when (this) {
-    is T -> transform()
-    else -> this
+private fun measurementEdit(
+    state: S.Active,
+    id: MeasurementId,
+    weightInput: TextFieldState,
+    timestamp: Instant,
+): Next =
+    weightInput.text.toString().toPositiveDoubleOrNull()
+        ?.let { w -> Next(state, Cmd.UpdateMeasurement(id, w, timestamp.toEpochMilli())) }
+        ?: Next.just(state)
+
+private fun updateEditingWatering(state: S.Active, i: I.EditingWatering): Next =
+    (state as? HistoryModal.EditWatering)?.let { s ->
+        when (i) {
+            I.EditingWatering.Save ->
+                parseOptionalWeight(s.volumeInput.text.toString()).fold(
+                    onSuccess = { volume ->
+                        Next(
+                            s,
+                            Cmd.UpdateWatering(
+                                wateringId = s.wateringId,
+                                plantId = s.parent.plant.id,
+                                oldTimestampMs = s.originalTimestamp.toEpochMilli(),
+                                newTimestampMs = s.timestamp.toEpochMilli(),
+                                volumeMl = volume,
+                            )
+                        )
+                    },
+                    onFailure = { Next.just(s) },
+                )
+            I.EditingWatering.OpenDateTimePicker -> Next.just(s.copy(isDateTimePickerOpen = true))
+            I.EditingWatering.CloseDateTimePicker -> Next.just(s.copy(isDateTimePickerOpen = false))
+            is I.EditingWatering.SetTimestamp ->
+                Next.just(s.copy(timestamp = i.timestamp, isDateTimePickerOpen = false))
+            I.EditingWatering.Saved -> Next.just(s.parent)
+        }
+    } ?: Next.just(state)
+
+private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
+    is I.Details.DeleteMeasurement -> Next(state, Cmd.DeleteMeasurement(i.id))
+    is I.Details.DeleteWatering -> Next(state, Cmd.DeleteWatering(i.id))
+    is I.Details.CopyMonth -> copyMonth(state, i.month)
+
+    I.Details.GoLeft, I.Details.GoRight,
+    I.Details.OpenPruning, I.Details.OpenRepottingDialog,
+    I.Details.OpenAddMeasurement, I.Details.OpenWateringDialog,
+    I.Details.OpenMeasurementHistory, I.Details.OpenWateringHistory,
+    I.Details.StartEditingPlant,
+    is I.Details.StartEditingMeasurement,
+    is I.Details.StartEditingWatering -> Next.just(reduceDetails(state, i))
 }
+
+private fun copyMonth(state: S.Active, month: YearMonth): Next =
+    (state as? Plant)
+        ?.zipper?.focus?.records?.find { it.month == month }
+        ?.let { g ->
+            Next(state, Cmd.CopyToClipboard(g.monthNameAndYearTitle, g.toClipboardText()))
+        }
+        ?: Next.just(state)
+
+private fun updateOverview(state: S.Active, i: I.Overview): Next =
+    (state as? S.Overview)?.let { s ->
+        when (i) {
+            I.Overview.OpenAddPlant -> Next(
+                S.Creating(parent = s, form = AddPlantForm.empty(), speciesList = emptyList()),
+                Cmd.LoadCreatingSpecies
+            )
+
+            is I.Overview.SelectPlant -> Next.just(
+                s.plants.indexOfFirst { it.id == i.plantId }
+                    .takeIf { it != -1 }
+                    ?.let { Plant(VectorZipper(it, s.plants)) }
+                    ?: s
+            )
+
+            is I.Overview.StartEditingPlantName ->
+                s.plants.find { it.id == i.plantId }?.let { plant ->
+                    Next(
+                        S.EditingName(
+                            parent = s,
+                            plantId = plant.id,
+                            nameInput = TextFieldState(plant.name),
+                            selectedSpeciesId = plant.speciesId,
+                            isDropdownExpanded = false,
+                            speciesList = emptyList(),
+                        ),
+                        Cmd.LoadEditingSpecies
+                    )
+                } ?: Next.just(s)
+
+            // пока обрабатывается в handleIntent, переедет на шаге 8
+            is I.Overview.Deletion -> Next.just(s)
+        }
+    } ?: Next.just(state)
+
+private fun updateEditingMeasurement(state: S.Active, i: I.EditingMeasurement): Next =
+    when (state) {
+        is EditMeasurement -> when (i) {
+            I.EditingMeasurement.Save ->
+                measurementEdit(state, state.measurementId, state.weightInput, state.timestamp)
+            I.EditingMeasurement.OpenDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = true))
+            I.EditingMeasurement.CloseDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = false))
+            is I.EditingMeasurement.SetTimestamp ->
+                Next.just(state.copy(timestamp = i.timestamp, isDateTimePickerOpen = false))
+            I.EditingMeasurement.Saved -> Next.just(state.parent)
+        }
+
+        is HistoryModal.EditMeasurement -> when (i) {
+            I.EditingMeasurement.Save ->
+                measurementEdit(state, state.measurementId, state.weightInput, state.timestamp)
+            I.EditingMeasurement.OpenDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = true))
+            I.EditingMeasurement.CloseDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = false))
+            is I.EditingMeasurement.SetTimestamp ->
+                Next.just(state.copy(timestamp = i.timestamp, isDateTimePickerOpen = false))
+            I.EditingMeasurement.Saved -> Next.just(state.parent)
+        }
+
+        else -> Next.just(state)
+    }
+
 private val WEIGHT_REGEX = Regex("""^\d+([.,]\d+)?$""")
 
 fun String.toPositiveDoubleOrNull(): Double? {
@@ -265,54 +357,6 @@ private fun History.reduce(i: I.Details): S.Active = when (i) {
     else -> this
 }
 
-private fun S.Overview.reduce(i: I.Overview): S.Active = when (i) {
-    I.Overview.OpenAddPlant -> S.Creating(
-        parent = this,
-        speciesList = emptyList()
-    )
-
-    is I.Overview.SelectPlant ->
-        plants.indexOfFirst { it.id == i.plantId }
-            .takeIf { it != -1 }
-            ?.let { Plant(VectorZipper(it, plants)) }
-            ?: this
-
-    is I.Overview.StartEditingPlantName ->
-        plants.find { it.id == i.plantId }?.let { plant ->
-            S.EditingName(
-                parent = this,
-                plantId = plant.id,
-                nameInput = TextFieldState(plant.name),
-                selectedSpeciesId = plant.speciesId,
-                isDropdownExpanded = false,
-                speciesList = emptyList(),
-            )
-        } ?: this
-
-    is I.Overview.Deletion -> this
-}
-
-private fun S.Creating.reduce(i: I.Creating): S.Active = when (i) {
-    I.Creating.Save -> parent
-    is I.Creating.ToggleDropdown -> copy(form = form.copy(isDropdownExpanded = i.expanded))
-    is I.Creating.SelectSpecies -> copy(
-        form = form.copy(
-            speciesSelection = i.selection,
-            isDropdownExpanded = false
-        )
-    )
-
-    I.Creating.UnknownSpecies -> copy(
-        form = form.copy(
-            speciesSelection = SpeciesSelection.Unknown,
-            isDropdownExpanded = false
-        )
-    )
-
-    is I.Creating.AddPhoto -> this
-    is I.Creating.AddPhotoCopied -> copy(form = form.copy(photoPath = i.relativePath))
-}
-
 private fun Plant.reduce(i: I.Details): S.Active = when (i) {
     I.Details.GoLeft -> copy(zipper = zipper.goBack())
     I.Details.GoRight -> copy(zipper = zipper.goForward())
@@ -344,31 +388,6 @@ private fun Plant.reduce(i: I.Details): S.Active = when (i) {
 
     I.Details.OpenMeasurementHistory,
     I.Details.OpenWateringHistory -> History(parent = this)
-}
-
-private fun LogWatering.reduce(i: I.LoggingWatering): S.Active = when (i) {
-    I.LoggingWatering.Save -> parent
-    I.LoggingWatering.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
-    I.LoggingWatering.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
-    is I.LoggingWatering.SetWateringTimestamp ->
-        copy(customTimestamp = i.timestamp, isDateTimePickerOpen = false)
-}
-
-private fun EditMeasurement.reduce(i: I.EditingMeasurement): S.Active = when (i) {
-    I.EditingMeasurement.Save -> parent
-    I.EditingMeasurement.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
-    I.EditingMeasurement.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
-    is I.EditingMeasurement.SetTimestamp -> copy(
-        timestamp = i.timestamp,
-        isDateTimePickerOpen = false
-    )
-}
-
-private fun HistoryModal.EditWatering.reduce(i: I.EditingWatering): S.Active = when (i) {
-    I.EditingWatering.Save -> parent
-    I.EditingWatering.OpenDateTimePicker -> copy(isDateTimePickerOpen = true)
-    I.EditingWatering.CloseDateTimePicker -> copy(isDateTimePickerOpen = false)
-    is I.EditingWatering.SetTimestamp -> copy(timestamp = i.timestamp, isDateTimePickerOpen = false)
 }
 
 

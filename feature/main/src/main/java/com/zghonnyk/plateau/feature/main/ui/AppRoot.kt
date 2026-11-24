@@ -12,10 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import com.zghonnyk.domain.MonthlyStatItem
-import com.zghonnyk.domain.PlantPeakWeight
-import com.zghonnyk.domain.Species
-import com.zghonnyk.domain.SpeciesMeasurementStats
 import com.zghonnyk.plateau.feature.main.ui.screen.AddPlantScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryMeasScreen
 import com.zghonnyk.plateau.feature.main.ui.screen.HistoryScreen
@@ -34,51 +30,32 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Details.StartEditi
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.canGoBack
-import kotlinx.coroutines.flow.Flow
 
 @Composable
 fun BackAwareAppRoot(
-    median: Flow<Double>,
-    speciesStatsFlow: Flow<List<SpeciesMeasurementStats>>,
-    speciesList: List<Species>,
-    onGetEvaporatedForSpecies: (Long) -> Flow<Double>,
-    onGetPlantsWithMinWeight: (Double) -> Flow<List<PlantPeakWeight>>,
     state: PlantState,
     pendingDelete: PendingDelete?,
     onIntent: (PlantIntent) -> Unit,
     modifier: Modifier = Modifier,
-    onGetMonthlyStats: (Long, Long) -> Flow<List<MonthlyStatItem>>,
 ) {
     LifecycleEventEffect(Lifecycle.Event.ON_START) { onIntent(PlantIntent.Refresh) }
     BackHandler(enabled = state is PlantState.Active && state.canGoBack) {
         onIntent(PlantIntent.Back)
     }
     AppRoot(
-        median = median,
-        speciesStatsFlow = speciesStatsFlow,
-        speciesList = speciesList,
-        onGetEvaporatedForSpecies = onGetEvaporatedForSpecies,
-        onGetPlantsWithMinWeight = onGetPlantsWithMinWeight,
         state = state,
         pendingDelete = pendingDelete,
         onIntent = onIntent,
         modifier = modifier,
-        onGetMonthlyStats = onGetMonthlyStats,
     )
 }
 
 @Composable
 fun AppRoot(
-    median: Flow<Double>,
-    speciesStatsFlow: Flow<List<SpeciesMeasurementStats>>,
-    speciesList: List<Species>,
-    onGetEvaporatedForSpecies: (Long) -> Flow<Double>,
-    onGetPlantsWithMinWeight: (Double) -> Flow<List<PlantPeakWeight>>,
     state: PlantState,
     pendingDelete: PendingDelete?,
     onIntent: (PlantIntent) -> Unit,
     modifier: Modifier = Modifier,
-    onGetMonthlyStats: (Long, Long) -> Flow<List<MonthlyStatItem>>,
 ) = when (state) {
     is PlantState.DBUninitialized -> {
         Surface {
@@ -93,23 +70,17 @@ fun AppRoot(
     }
 
     is PlantState.Active -> ActiveHost(
-        onGetEvaporatedForSpecies = onGetEvaporatedForSpecies,
-        onGetPlantsWithMinWeight = onGetPlantsWithMinWeight,
         state = state,
         pendingDelete = pendingDelete,
         onIntent = onIntent,
-        onGetMonthlyStats = onGetMonthlyStats,
     )
 }
 
 @Composable
 private fun ActiveHost(
-    onGetEvaporatedForSpecies: (Long) -> Flow<Double>,
-    onGetPlantsWithMinWeight: (Double) -> Flow<List<PlantPeakWeight>>,
     state: PlantState.Active,
     pendingDelete: PendingDelete?,
-    onIntent: (PlantIntent) -> Unit,
-    onGetMonthlyStats: (Long, Long) -> Flow<List<MonthlyStatItem>>
+    onIntent: (PlantIntent) -> Unit
 ) {
     val holder = rememberSaveableStateHolder()
     val screen = state.screen()

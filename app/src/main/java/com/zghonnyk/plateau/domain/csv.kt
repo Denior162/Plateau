@@ -35,16 +35,16 @@ class CsvRecord(val type: String, val line: Int, private val f: Map<String, Stri
         return if (d % 1.0 == 0.0) d.toInt() else fail("$k must be an integer, not \"${str(k)}\"")
     }
 
-    fun ts(k: String = "timestamp"): Instant? {
+    fun ts(k: String): Instant? {
         val raw = str(k)
         if (raw.isEmpty()) return null
         return try {
             raw.toLongOrNull()?.let(Instant::ofEpochMilli) ?: Instant.parse(raw)
-        } catch (e: DateTimeParseException) {
+        } catch (_: DateTimeParseException) {
             fail("invalid date \"$raw\"")
         }
     }
-    fun reqTs(k: String = "timestamp") = ts(k) ?: fail("empty field \"$k\"")
+    fun reqTs(k: String) = ts(k) ?: fail("empty field \"$k\"")
 
     fun bool(k: String) = str(k) == "1" || str(k).equals("true", ignoreCase = true)
 
@@ -68,7 +68,7 @@ fun toCsv(records: List<CsvRecord>): String = buildString {
 class CsvLine(val number: Int, val cells: List<String>)
 
 /** RFC 4180: кавычки, "" внутри кавычек, переводы строк внутри ячейки. Пустые строки пропускаются. */
-fun parseCsv(text: String, delimiter: Char = ','): List<CsvLine> {
+fun parseCsv(text: String, delimiter: Char): List<CsvLine> {
     val rows = mutableListOf<CsvLine>()
     var row = mutableListOf<String>()
     val cell = StringBuilder()
@@ -88,9 +88,9 @@ fun parseCsv(text: String, delimiter: Char = ','): List<CsvLine> {
         val c = text[i]
         if (c == '\n') line++
         when {
-            inQuotes -> when {
-                c == '"' && text.getOrNull(i + 1) == '"' -> { cell.append('"'); i++ }
-                c == '"' -> inQuotes = false
+            inQuotes -> when (c) {
+                '"' if text.getOrNull(i + 1) == '"' -> { cell.append('"'); i++ }
+                '"' -> inQuotes = false
                 else -> cell.append(c)
             }
             c == '"' -> inQuotes = true

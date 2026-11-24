@@ -1,8 +1,5 @@
 package com.zghonnyk.plateau.domain
 
-import java.nio.ByteBuffer
-import java.nio.charset.CharacterCodingException
-import java.nio.charset.CodingErrorAction
 import java.time.Instant
 
 /** Типизированная запись файла. Ссылки на другие сущности хранятся именами. */
@@ -85,30 +82,20 @@ fun CsvRecord.toEntry(): CsvEntry = when (type) {
         ts("acquisition_date"), ts("archived_at"), pos("measurement_noise_grams"),
     )
     "measurement" -> MeasurementEntry(
-        line, req("plant"), reqTs(),
+        line, req("plant"), reqTs("timestamp"),
         pos("weight_grams") ?: fail("empty field \"weight_grams\""), bool("excluded"),
     )
-    "watering" -> WateringEntry(line, req("plant"), reqTs(), pos("water_volume_ml"))
+    "watering" -> WateringEntry(line, req("plant"), reqTs("timestamp"), pos("water_volume_ml"))
     "removal" -> RemovalEntry(
-        line, req("plant"), reqTs(), pos("removed_grams"), opt("event_type") ?: "pruning", opt("notes"),
+        line, req("plant"), reqTs("timestamp"), pos("removed_grams"), opt("event_type") ?: "pruning", opt("notes"),
     )
     "soil_addition" -> SoilAdditionEntry(
-        line, req("plant"), reqTs(), pos("added_grams"), opt("soil"), opt("notes"),
+        line, req("plant"), reqTs("timestamp"), pos("added_grams"), opt("soil"), opt("notes"),
     )
     "repotting" -> RepottingEntry(
-        line, req("plant"), reqTs(), req("pot"), opt("soil"), opt("reason"),
+        line, req("plant"), reqTs("timestamp"), req("pot"), opt("soil"), opt("reason"),
     )
     else -> fail("unknown type \"$type\"")
-}
-
-/** Excel в укр. локали сохраняет CSV в windows-1251; если это не UTF-8, читаем как 1251. */
-fun decodeCsv(bytes: ByteArray): String = try {
-    Charsets.UTF_8.newDecoder()
-        .onMalformedInput(CodingErrorAction.REPORT)
-        .onUnmappableCharacter(CodingErrorAction.REPORT)
-        .decode(ByteBuffer.wrap(bytes)).toString()
-} catch (e: CharacterCodingException) {
-    String(bytes, charset("windows-1251"))
 }
 
 /**

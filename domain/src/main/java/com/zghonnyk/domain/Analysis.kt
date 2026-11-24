@@ -237,7 +237,7 @@ private fun ExpFit.toActive(config: DryingConfig, fallback: Duration?): DryingFo
     val rate = rateAt(lastDay)
     val interval =
         calculateOptimalInterval(config.scaleAccuracyGrams, config.minSignalMultiplier) ?: fallback
-    val days = daysUntilPlateau(config.epsilon)
+    val days = daysUntilPlateau(config.epsilon, lastDay)
     return if (rate <= config.epsilon) DryingForecast.NearPlateau(interval, rate, days, this)
     else DryingForecast.StillDrying(interval, rate, days, this)
 }
@@ -325,7 +325,7 @@ private fun linearRmse(days: List<Double>, weights: List<Double>): Double {
 }
 
 private fun intercept(wMean: Double, slope: Double, dMean: Double): Double = wMean - slope * dMean
-private fun ExpFit.daysUntilPlateau(epsilon: Double, day: Double = lastDay): Int =
+private fun ExpFit.daysUntilPlateau(epsilon: Double, day: Double): Int =
     if (rateAt(day) <= epsilon) 0
     else ceil((ln(k * amplitude / epsilon) / k) - day).toInt()
 

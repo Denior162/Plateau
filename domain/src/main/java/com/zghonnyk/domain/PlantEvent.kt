@@ -31,13 +31,11 @@ typealias History = List<Epoch>
 private fun <T> List<T>.mapLast(f: (T) -> T): List<T> = dropLast(1) + f(last())
 private fun Epoch.mapLastPhase(f: (Phase) -> Phase): Epoch = Epoch(phases.mapLast(f))
 
-fun List<Phase>.activeMeasurements(): List<Measurement> {
-    return this.lastOrNull()?.measurements ?: emptyList()
-}
+fun List<Phase>.activeMeasurements(): List<Measurement> =
+    this.lastOrNull()?.measurements ?: emptyList()
 
-fun List<Phase>.allMeasurementsFlattened(): List<Measurement> {
-    return this.flatMap { it.measurements }
-}
+fun List<Phase>.allMeasurementsFlattened(): List<Measurement> =
+    this.flatMap { it.measurements }
 
 private fun PhaseStart.rank(): Int = when (this) {
     PhaseStart.First -> 0

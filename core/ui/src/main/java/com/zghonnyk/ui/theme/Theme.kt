@@ -3,7 +3,6 @@ package com.zghonnyk.ui.theme
 import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -14,7 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun PlateauTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current

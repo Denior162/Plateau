@@ -179,7 +179,6 @@ fun EditMeasurementDialog(
         MeasurementDateTimePicker(
             onDismiss = { onIntent(PlantIntent.EditingMeasurement.CloseDateTimePicker) },
             onDateTimeSelected = { onIntent(PlantIntent.EditingMeasurement.SetTimestamp(it)) },
-            initialTimestamp = state.timestamp,
         )
     }
 }
@@ -223,7 +222,6 @@ fun EditWateringDialog(
 
     if (state.isDateTimePickerOpen) {
         MeasurementDateTimePicker(
-            initialTimestamp = state.timestamp,
             onDismiss = { onIntent(PlantIntent.EditingWatering.CloseDateTimePicker) },
             onDateTimeSelected = { onIntent(PlantIntent.EditingWatering.SetTimestamp(it)) },
         )

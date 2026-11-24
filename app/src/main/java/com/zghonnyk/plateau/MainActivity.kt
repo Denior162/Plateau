@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -25,7 +26,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            PlateauTheme {
+            PlateauTheme(isSystemInDarkTheme()) {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
                 val clipboard = LocalClipboard.current
@@ -45,15 +46,9 @@ class MainActivity : ComponentActivity() {
 
                 val send = remember { { intent: PlantIntent -> viewModel.onIntent(intent, Instant.now()) } }
                 BackAwareAppRoot(
-                    median = viewModel.getGlobalMedian(),
-                    speciesStatsFlow = viewModel.getSpeciesMeasurementStats(),
-                    speciesList = viewModel.getSpeciesList(),
-                    onGetEvaporatedForSpecies = { viewModel.getTotalEvaporatedBySpecies(it) },
-                    onGetPlantsWithMinWeight = { viewModel.getPlantsWithMinPeakWeight(it) },
                     state = state,
                     pendingDelete = pendingDelete,
-                    onIntent = send,
-                    onGetMonthlyStats = { lng, lng1 -> viewModel.getMonthlyStats() }
+                    onIntent = send
                 )
             }
         }

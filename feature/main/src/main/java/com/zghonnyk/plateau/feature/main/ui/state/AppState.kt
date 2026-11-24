@@ -270,6 +270,7 @@ sealed interface PlantIntent {
         data object OpenDateTimePicker : EditingMeasurement
         data object CloseDateTimePicker : EditingMeasurement
         data class SetTimestamp(val timestamp: Instant) : EditingMeasurement
+        data object Saved : EditingMeasurement
     }
 
     sealed interface EditingWatering : PlantIntent {
@@ -277,6 +278,7 @@ sealed interface PlantIntent {
         data object OpenDateTimePicker : EditingWatering
         data object CloseDateTimePicker : EditingWatering
         data class SetTimestamp(val timestamp: Instant) : EditingWatering
+        data object Saved : EditingWatering
     }
 
     sealed interface Pruning : PlantIntent {
