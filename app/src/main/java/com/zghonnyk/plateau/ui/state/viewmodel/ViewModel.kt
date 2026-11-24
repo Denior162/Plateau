@@ -1,7 +1,6 @@
 package com.zghonnyk.plateau.ui.state.viewmodel
 
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -36,7 +35,7 @@ import com.zghonnyk.domain.timeline
 import com.zghonnyk.domain.withRates
 import com.zghonnyk.plateau.PlateauApplication
 import com.zghonnyk.plateau.data.db.PlateauDatabase
-import com.zghonnyk.plateau.data.repository.PotChoice
+import com.zghonnyk.plateau.data.repository.PotChoice.New
 import com.zghonnyk.plateau.data.repository.deleteMeasurement
 import com.zghonnyk.plateau.data.repository.exportRows
 import com.zghonnyk.plateau.data.repository.fetchAllSpecies
@@ -71,13 +70,16 @@ import com.zghonnyk.plateau.feature.main.ui.state.Cmd
 import com.zghonnyk.plateau.feature.main.ui.state.PendingDelete
 import com.zghonnyk.plateau.feature.main.ui.state.PlantFacts
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
+import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Creating.AddPhotoCopied
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.Plant
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
-import com.zghonnyk.plateau.feature.main.ui.state.SpeciesSelection
 import com.zghonnyk.plateau.feature.main.ui.state.applyPlants
 import com.zghonnyk.plateau.feature.main.ui.state.reducePlantState
+import com.zghonnyk.plateau.feature.main.ui.state.toPositiveDoubleOrNull
 import com.zghonnyk.plateau.feature.main.ui.state.update
+import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.PlantEffect.ShowMessage
+import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.UiText.Resource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -144,16 +146,16 @@ class PlantsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val msg: UiText = try {
                 val out = deps.openOut(uri) ?: return@launch _effects.send(
-                    PlantEffect.ShowMessage(
-                        UiText.Resource(R.string.error_cannot_open_file)
+                    ShowMessage(
+                        Resource(R.string.error_cannot_open_file)
                     )
                 )
                 out.bufferedWriter(Charsets.UTF_8).use { it.write(toCsv(exportRows(database))) }
-                UiText.Resource(R.string.export_ready)
+                Resource(R.string.export_ready)
             } catch (e: Exception) {
-                UiText.Resource(R.string.export_error, listOf(e.message.orEmpty()))
+                Resource(R.string.export_error, listOf(e.message.orEmpty()))
             }
-            _effects.send(PlantEffect.ShowMessage(msg))
+            _effects.send(ShowMessage(msg))
         }
     }
 
@@ -161,21 +163,21 @@ class PlantsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val msg: UiText = try {
                 val input = deps.openIn(uri) ?: return@launch _effects.send(
-                    PlantEffect.ShowMessage(
-                        UiText.Resource(R.string.error_cannot_open_file)
+                    ShowMessage(
+                        Resource(R.string.error_cannot_open_file)
                     )
                 )
                 val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 val summary = importBackup(database, parseBackup(text))
-                UiText.Resource(
+                Resource(
                     R.string.import_success, listOf(
                         summary.plantsAdded, summary.measurementsAdded, summary.measurementsSkipped
                     )
                 )
             } catch (e: Exception) {
-                UiText.Resource(R.string.import_error, listOf(e.message.orEmpty()))
+                Resource(R.string.import_error, listOf(e.message.orEmpty()))
             }
-            _effects.send(PlantEffect.ShowMessage(msg))
+            _effects.send(ShowMessage(msg))
         }
     }
 
@@ -353,10 +355,6 @@ class PlantsViewModel(
 
     fun handleIntent(intent: PlantIntent) {
         when (intent) {
-            is PlantIntent.Creating.Save -> savePlant()
-            is PlantIntent.AddingMeasurement.Save -> saveMeasurement()
-            is PlantIntent.LoggingWatering.Save -> saveWatering()
-            is PlantIntent.EditingPlant.Save -> savePlantEdit()
             is PlantIntent.EditingMeasurement.Save -> saveMeasurementEdit()
             is PlantIntent.EditingName.Save -> saveEditingName()
             is PlantIntent.Overview.StartEditingPlantName -> startEditingPlantName(intent)
@@ -367,28 +365,60 @@ class PlantsViewModel(
             is PlantIntent.Overview.SelectPlant -> if (_pendingDelete.value?.plantId != intent.plantId) reduce(
                 intent
             )
-
-            is PlantIntent.Pruning.Save -> savePruning()
-            is PlantIntent.Repotting.Save -> saveRepotting()
             is PlantIntent.Overview.OpenAddPlant -> openAddPlant(intent)
             is PlantIntent.EditingWatering.Save -> saveWateringEdit()
             is PlantIntent.Details.DeleteWatering -> removeWatering(intent.id)
-            is PlantIntent.Creating.AddPhoto -> addPhoto(intent.uri)
             else -> dispatch(intent)
         }
     }
 
     private fun dispatch(intent: PlantIntent) {
         val s = _uiState.value as? PlantState.Active ?: return
-        val (next, cmd) = update(s, intent)
+        val (next, cmd) = update(s, intent, now())
         _uiState.value = next
         run(cmd)
     }
 
-    private fun run(cmd: Cmd): Unit = when (cmd) {
-        Cmd.None -> Unit
-        is Cmd.ExportCsv -> exportCsv(cmd.uri)
-        is Cmd.ImportCsv -> importCsv(cmd.uri)
+    private fun run(cmd: Cmd) {
+        when (cmd) {
+            Cmd.None -> Unit
+            is Cmd.ExportCsv -> exportCsv(cmd.uri)
+            is Cmd.ImportCsv -> importCsv(cmd.uri)
+            is Cmd.SavePruning -> viewModelScope.launch(Dispatchers.IO) {
+                insertNewPruning(database, cmd.plantId.value, cmd.timestampMs, cmd.removedGrams)
+            }
+            is Cmd.SaveRepotting -> viewModelScope.launch(Dispatchers.IO) {
+                insertNewRepotting(
+                    db = database,
+                    plantId = cmd.plantId.value,
+                    timestamp = cmd.timestampMs,
+                    pot = New(cmd.potName, null),
+                    weightAfterGrams = cmd.weightAfterGrams,
+                )
+            }
+            is Cmd.SaveMeasurement -> viewModelScope.launch(Dispatchers.IO) {
+                insertNewMeasurement(database, cmd.plantId.value, cmd.timestampMs, cmd.weightGrams)
+            }
+
+            is Cmd.SaveWatering -> viewModelScope.launch(Dispatchers.IO) {
+                insertNewWatering(database, cmd.plantId.value, cmd.timestampMs, cmd.volume, cmd.weightGrams)
+            }
+
+            is Cmd.SavePlant -> viewModelScope.launch(Dispatchers.IO) {
+                deps.insertPlant(cmd.name, cmd.speciesId, cmd.createdAtMs, cmd.photoPath)
+            }
+            is Cmd.CopyPhoto -> viewModelScope.launch {
+                runCatching { deps.copyPhoto(cmd.uri) }
+                    .onSuccess { path -> dispatch(AddPhotoCopied(path)) }
+                    .onFailure {
+                        _effects.send(ShowMessage(Resource(R.string.error_failed_to_add_photo)))
+                    }
+            }
+            is Cmd.DeletePhoto -> viewModelScope.launch(Dispatchers.IO) { deps.deletePhoto(cmd.path) }
+            is Cmd.UpdatePlant -> viewModelScope.launch(Dispatchers.IO) {
+                updatePlant(database, cmd.plantId.value, cmd.name, cmd.speciesId)
+            }
+        }
     }
 
     private fun persist(
@@ -398,42 +428,8 @@ class PlantsViewModel(
     ) {
         viewModelScope.launch {
             runCatching { withContext(Dispatchers.IO) { block() } }.onSuccess { onSuccess() }
-                .onFailure { _effects.send(PlantEffect.ShowMessage(errorText)) }
+                .onFailure { _effects.send(ShowMessage(errorText)) }
         }
-    }
-
-    private fun addPhoto(uri: Uri) {
-        viewModelScope.launch {
-            runCatching { deps.copyPhoto(uri) }.onSuccess { path ->
-                Log.d("Photo", "copied: $path")
-                (_uiState.value as? PlantState.Creating)?.form?.photoPath?.let {
-                    deps.deletePhoto(
-                        it
-                    )
-                }
-                reduce(PlantIntent.Creating.AddPhotoCopied(path))
-            }.onFailure {
-                Log.e("Photo", "failed to copy photo", it)
-                _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_failed_to_add_photo)))
-            }
-        }
-    }
-
-    private fun savePlant() {
-        val s = _uiState.value as? PlantState.Creating ?: return
-        Log.d("Photo", "save, photoPath=${s.form.photoPath}") // ← Лог 2
-        val name = s.form.customName.text.toString().trim()
-        if (name.isEmpty()) return
-        val speciesId = when (val selection = s.form.speciesSelection) {
-            is SpeciesSelection.Selected -> selection.species.id.value
-            SpeciesSelection.Unknown -> null
-            SpeciesSelection.Unselected -> return
-        }
-
-        viewModelScope.launch(Dispatchers.IO) {
-            deps.insertPlant(name, speciesId, now().toEpochMilli(), s.form.photoPath)
-        }
-        reduce(PlantIntent.Creating.Save)
     }
 
     private fun saveWateringEdit() {
@@ -458,39 +454,9 @@ class PlantsViewModel(
             }.onSuccess {
                 reduce(PlantIntent.EditingWatering.Save)
             }.onFailure {
-                _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_failed_to_save_watering)))
+                _effects.send(ShowMessage(Resource(R.string.error_failed_to_save_watering)))
             }
         }
-    }
-
-    private fun saveRepotting() {
-        val s = _uiState.value as? PlantState.PlantModal.Repotting ?: return
-
-        val weightText = s.weightInput.text.toString()
-
-        val weightAfter = weightText.takeIf { it.isNotBlank() }?.let { text ->
-            val parsed = text.replace(',', '.').toDoubleOrNull()
-            parsed?.takeIf { it > 0.0 } ?: return
-        }
-
-        val potMass = null
-
-        val plantId = s.parent.focus.id.value
-        val ts = (s.customTimestamp ?: now()).toEpochMilli()
-
-        val potName = "${s.parent.focus.name} pot"
-
-        viewModelScope.launch(Dispatchers.IO) {
-            insertNewRepotting(
-                db = database,
-                plantId = plantId,
-                timestamp = ts,
-                pot = PotChoice.New(potName, potMass),
-                weightAfterGrams = weightAfter
-            )
-        }
-
-        closeModal()
     }
 
     fun updateWatering(
@@ -523,7 +489,6 @@ class PlantsViewModel(
         }
     }
 
-    /** «Назад» только если сейчас открыта модалка; иначе Back увёл бы с экрана. */
     private fun closeModal() {
         if (_uiState.value is PlantState.Modal) reduce(PlantIntent.Back)
     }
@@ -598,44 +563,6 @@ class PlantsViewModel(
         if (s is PlantState.Active) reducePlantState(s, intent) else s
     }
 
-    private fun savePruning() {
-        val s = _uiState.value as? PlantState.PlantModal.Pruning ?: return
-        val raw = s.weightInput.text.toString()
-        val removed = if (raw.isBlank()) null else raw.toPositiveDoubleOrNull() ?: return
-        val plantId = s.parent.focus.id
-        val timestamp = (s.customTimestamp ?: now()).toEpochMilli()
-
-        viewModelScope.launch(Dispatchers.IO) {
-            insertNewPruning(database, plantId.value, timestamp, removed)
-        }
-        _uiState.update { s.parent }
-    }
-
-    private fun saveMeasurement() {
-        val s = _uiState.value as? PlantState.PlantModal.AddMeasurement ?: return
-        val weight = s.weightInput.text.toString().toPositiveDoubleOrNull() ?: return
-        val plantId = s.parent.focus.id
-        val timestamp = (s.customTimestamp ?: now()).toEpochMilli()
-
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                insertNewMeasurement(database, plantId.value, timestamp, weight)
-            }
-            reduce(PlantIntent.AddingMeasurement.Save)
-        }
-    }
-
-    private fun savePlantEdit() {
-        val s = _uiState.value as? PlantState.PlantModal.EditPlant ?: return
-        val name = s.nameInput.text.toString().trim()
-        if (name.isEmpty()) return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            updatePlant(database, s.plantId.value, name, s.selectedSpeciesId)
-        }
-        reduce(PlantIntent.EditingPlant.Save)
-    }
-
     private fun saveMeasurementEdit() {
         val (measurementId, weightInput, timestamp) = when (val s = _uiState.value) {
             is PlantState.PlantModal.EditMeasurement -> Triple(
@@ -658,27 +585,10 @@ class PlantsViewModel(
                     )
                 }
             }.onSuccess { reduce(PlantIntent.EditingMeasurement.Save) }
-                .onFailure { _effects.send(PlantEffect.ShowMessage(UiText.Resource(R.string.error_measurement_exists_at_time))) }
+                .onFailure { _effects.send(ShowMessage(Resource(R.string.error_measurement_exists_at_time))) }
         }
     }
 
-    private fun String.toPositiveDoubleOrNull(): Double? {
-        val cleaned = filter { it.isDigit() || it == '.' || it == ',' }
-        return cleaned.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
-    }
-
-    private fun saveWatering() {
-        val s = _uiState.value as? PlantState.PlantModal.LogWatering ?: return
-        val volume = s.volumeInput.text.toString().toPositiveDoubleOrNull()
-        val weight = s.weightInput.text.toString().toPositiveDoubleOrNull()
-        val plantId = s.parent.focus.id
-        val timestamp = (s.customTimestamp ?: now()).toEpochMilli()
-
-        viewModelScope.launch(Dispatchers.IO) {
-            insertNewWatering(database, plantId.value, timestamp, volume, weight)
-        }
-        reduce(PlantIntent.LoggingWatering.Save)
-    }
 
     companion object {
         private const val DELETE_DELAY_MS = 10_000L

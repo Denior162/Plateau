@@ -41,7 +41,7 @@ sealed interface PlantState {
     @Immutable
     data class Creating(
         override val parent: Overview,
-        val form: AddPlantForm = AddPlantForm(),
+        val form: AddPlantForm = AddPlantForm.empty(),
         val speciesList: List<DomainSpecies>,
     ) : Screen
 
@@ -149,7 +149,6 @@ sealed interface PlantState {
             val isDateTimePickerOpen: Boolean = false,
         ) : PlantModal
 
-        @Immutable
         data class EditPlant(
             override val parent: Details.Plant,
             val plantId: PlantId,

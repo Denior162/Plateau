@@ -103,13 +103,24 @@ data class Moisture(
     val tare: Tare
 )
 data class AddPlantForm(
-    val searchQuery: TextFieldState = TextFieldState(""),
-    val customName: TextFieldState = TextFieldState(""),
-    val weightInput: TextFieldState = TextFieldState(""),
-    val isDropdownExpanded: Boolean = false,
-    val speciesSelection: SpeciesSelection = SpeciesSelection.Unselected,
-    val photoPath: String? = null
-)
+    val searchQuery: TextFieldState,
+    val customName: TextFieldState,
+    val weightInput: TextFieldState,
+    val isDropdownExpanded: Boolean,
+    val speciesSelection: SpeciesSelection,
+    val photoPath: String?,
+) {
+    companion object {
+        fun empty() = AddPlantForm(
+            searchQuery = TextFieldState(""),
+            customName = TextFieldState(""),
+            weightInput = TextFieldState(""),
+            isDropdownExpanded = false,
+            speciesSelection = SpeciesSelection.Unselected,
+            photoPath = null,
+        )
+    }
+}
 
 sealed interface SpeciesSelection {
     data object Unselected : SpeciesSelection
