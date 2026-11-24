@@ -15,12 +15,6 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Repottin
 import com.zghonnyk.vector_zipper.VectorZipper
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent as I
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState as S
-
-/**
- * Дешёвая проверка для BackHandler: у Plant `parent` вычисляется (zipper.list),
- * поэтому не спрашиваем `parent != null`.
- * Инвариант (хорошее property-тест-место): canGoBack == (parent != null).
- */
 val S.Active.canGoBack: Boolean get() = this !is S.Overview
 
 fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {

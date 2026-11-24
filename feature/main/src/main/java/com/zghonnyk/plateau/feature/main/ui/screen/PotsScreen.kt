@@ -72,7 +72,6 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.ui.theme.spacing
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PotsScreen(
     plants: List<PlantUi>,

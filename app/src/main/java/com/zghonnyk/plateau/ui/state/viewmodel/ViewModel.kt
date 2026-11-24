@@ -40,8 +40,6 @@ import com.zghonnyk.plateau.data.repository.PotChoice
 import com.zghonnyk.plateau.data.repository.deleteMeasurement
 import com.zghonnyk.plateau.data.repository.exportRows
 import com.zghonnyk.plateau.data.repository.fetchAllSpecies
-import com.zghonnyk.plateau.data.repository.fetchMeasurementsForPlant
-import com.zghonnyk.plateau.data.repository.fetchWateringsForPlant
 import com.zghonnyk.plateau.data.repository.insertNewMeasurement
 import com.zghonnyk.plateau.data.repository.insertNewPruning
 import com.zghonnyk.plateau.data.repository.insertNewRepotting
@@ -95,10 +93,7 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.Instant.now
 import java.time.YearMonth
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
@@ -119,7 +114,6 @@ class PlantsViewModel(
         data class Resource(
             val resId: Int, val args: List<Any> = emptyList()
         ) : UiText {
-            constructor(resId: Int, vararg args: Any) : this(resId, args.toList())
         }
 
         fun asString(context: android.content.Context): String = when (this) {
@@ -355,12 +349,6 @@ class PlantsViewModel(
 
     private fun readyAt(lastWeighedAt: Instant?, interval: Duration?): Instant? =
         lastWeighedAt?.let { last -> interval?.let { last.plus(it.toJavaDuration()) } }
-
-    fun overdue(lastWeighedAt: Instant, now: Instant, intervalDays: Int): Double {
-        val elapsedMillis = now.toEpochMilli() - lastWeighedAt.toEpochMilli()
-        val intervalMillis = intervalDays * 86_400_000L
-        return if (intervalMillis <= 0L) 0.0 else elapsedMillis.toDouble() / intervalMillis.toDouble()
-    }
 
 
     fun handleIntent(intent: PlantIntent) {
@@ -680,64 +668,6 @@ class PlantsViewModel(
             insertNewWatering(database, plantId.value, timestamp, volume, weight)
         }
         reduce(PlantIntent.LoggingWatering.Save)
-    }
-
-    private fun openMeasurementHistory() {
-        val s = _uiState.value as? Plant ?: return
-        reloadMeasurementHistory(s.focus.id.value)
-    }
-
-    private fun openWateringHistory() {
-        val s = _uiState.value as? Plant ?: return
-        reloadWateringHistory(s.focus.id.value)
-    }
-
-    private fun reloadMeasurementHistory(plantId: Long) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val measurements = fetchMeasurementsForPlant(database, plantId)
-            val dateFormatter =
-                DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
-
-            val elements = measurements.map { m ->
-                val formattedDate = Instant.ofEpochMilli(m.timestamp).atZone(ZoneId.systemDefault())
-                    .format(dateFormatter)
-                val weightStr =
-                    if (m.weight_grams % 1.0 == 0.0) "${m.weight_grams.toInt()} г" else "${m.weight_grams} г"
-
-                com.zghonnyk.plateau.feature.main.ui.state.MeasurementUiModel(
-                    id = MeasurementId(m.id),
-                    formattedDate = formattedDate,
-                    formattedWeight = weightStr,
-                    timestamp = Instant.ofEpochMilli(m.timestamp)
-                )
-            }
-            reduce(PlantIntent.Loaded.MeasurementHistory(PlantId(plantId), elements))
-        }
-    }
-
-    private fun reloadWateringHistory(plantId: Long) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val waterings = fetchWateringsForPlant(database, plantId)
-            val dateFormatter =
-                DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.getDefault())
-
-            val elements = waterings.map { w ->
-                val formattedDate = Instant.ofEpochMilli(w.timestamp).atZone(ZoneId.systemDefault())
-                    .format(dateFormatter)
-                val volumeStr = when (val v = w.water_volume_ml) {
-                    null -> "об'єм не вказано"
-                    else -> if (v.rem(1.0) == 0.0) "${v.toInt()} мл" else "$v мл"
-                }
-
-                com.zghonnyk.plateau.feature.main.ui.state.WateringUiModel(
-                    id = WateringEventId(w.id),
-                    formattedDate = formattedDate,
-                    formattedVolume = volumeStr,
-                    timestamp = Instant.ofEpochMilli(w.timestamp)
-                )
-            }
-            reduce(PlantIntent.Loaded.WateringHistory(PlantId(plantId), elements))
-        }
     }
 
     companion object {
