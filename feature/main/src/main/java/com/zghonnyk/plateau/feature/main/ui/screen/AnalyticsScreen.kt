@@ -55,7 +55,6 @@ import com.zghonnyk.ui.theme.spacing
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
     globalMedianFlow: Flow<Double>,

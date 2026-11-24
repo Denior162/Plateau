@@ -195,6 +195,9 @@ selectAllWatering:
 SELECT * FROM watering_sessions
 ORDER BY timestamp;
 
+selectWateringsForPlant:
+SELECT * FROM watering_sessions WHERE plant_id = ?;
+
 selectAllPots:
 SELECT * FROM pots ORDER BY name;
 
@@ -392,3 +395,51 @@ WHERE s.id = :speciesId
   WHERE m.excluded = 0
   GROUP BY month_year
   ORDER BY month_year DESC;
+
+selectPlantOverview:
+SELECT
+    p.id,
+    p.name AS plant_name,
+    p.species_id,
+    s.name AS species_name,
+    lm.timestamp AS last_weighed_at,
+    CAST(EXISTS (SELECT 1 FROM watering_sessions w WHERE w.plant_id = p.id) AS INTEGER) AS has_watering,
+    ph.file_path AS photo_path,
+    po.empty_mass_grams AS tare_grams
+FROM plants p
+LEFT JOIN species s ON s.id = p.species_id
+LEFT JOIN measurements lm ON lm.id = (
+    SELECT m.id FROM measurements m
+    WHERE m.plant_id = p.id AND m.excluded = 0
+    ORDER BY m.timestamp DESC LIMIT 1
+)
+LEFT JOIN plant_photos ph ON ph.id = (
+    SELECT x.id FROM plant_photos x
+    WHERE x.plant_id = p.id
+    ORDER BY x.timestamp DESC, x.id DESC LIMIT 1
+)
+LEFT JOIN repotting_events r ON r.id = (
+    SELECT y.id FROM repotting_events y
+    WHERE y.plant_id = p.id
+    ORDER BY y.timestamp DESC LIMIT 1
+)
+LEFT JOIN pots po ON po.id = r.new_pot_id
+ORDER BY p.id DESC;
+
+selectActivePhaseMeasurements:
+WITH last_event AS (
+      SELECT plant_id, MAX(ts) AS ts FROM (
+          SELECT plant_id, timestamp AS ts FROM watering_sessions
+          UNION ALL
+          SELECT plant_id, timestamp FROM mass_removal_events
+          UNION ALL
+          SELECT plant_id, timestamp FROM repotting_events
+      ) GROUP BY plant_id
+  )
+  SELECT m.id, m.plant_id, m.timestamp, m.weight_grams
+  FROM measurements m
+  LEFT JOIN last_event e ON e.plant_id = m.plant_id
+  WHERE m.excluded = 0
+    AND m.timestamp >= COALESCE(e.ts, 0)
+  ORDER BY m.plant_id, m.timestamp;
+

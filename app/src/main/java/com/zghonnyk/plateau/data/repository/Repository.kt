@@ -6,6 +6,7 @@ import app.cash.sqldelight.coroutines.mapToList
 import com.zghonnyk.domain.MonthlyStatItem
 import com.zghonnyk.domain.PlantPeakWeight
 import com.zghonnyk.domain.SpeciesMeasurementStats
+import com.zghonnyk.plateau.data.db.Measurements
 import com.zghonnyk.plateau.data.db.PlateauDatabase
 import com.zghonnyk.plateau.data.db.Watering_sessions
 import com.zghonnyk.plateau.data.toDomain
@@ -25,6 +26,22 @@ data class ImportSummary(
 
 fun fetchAllMeasurements(db: PlateauDatabase) =
     db.plateauDatabaseQueries.selectAllMeasurements().executeAsList()
+
+fun observePlantOverview(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectPlantOverview().asFlow().mapToList(Dispatchers.IO)
+
+fun observeActivePhaseMeasurements(db: PlateauDatabase) =
+    db.plateauDatabaseQueries.selectActivePhaseMeasurements().asFlow().mapToList(Dispatchers.IO)
+
+fun observeMeasurementsForPlant(db: PlateauDatabase, plantId: Long): Flow<List<Measurements>> =
+    db.plateauDatabaseQueries.selectMeasurementsForPlant(plantId)
+        .asFlow()
+        .mapToList(Dispatchers.IO)
+
+fun observeWateringsForPlant(db: PlateauDatabase, plantId: Long): Flow<List<Watering_sessions>> =
+    db.plateauDatabaseQueries.selectWateringsForPlant(plantId)
+        .asFlow()
+        .mapToList(Dispatchers.IO)
 
 fun exportRows(db: PlateauDatabase): List<CsvRecord> {
     val plants = fetchPlantsWithSpecies(db).sortedBy { it.id }
@@ -133,8 +150,7 @@ fun insertNewWatering(
 }
 
 fun fetchWateringsForPlant(db: PlateauDatabase, plantId: Long) =
-    db.plateauDatabaseQueries.selectAllWatering().executeAsList().filter { it.plant_id == plantId }
-
+    db.plateauDatabaseQueries.selectWateringsForPlant(plantId).executeAsList()
 fun observeAllPrunings(db: PlateauDatabase) =
     db.plateauDatabaseQueries.selectAllPrunings().asFlow().mapToList(Dispatchers.IO)
 

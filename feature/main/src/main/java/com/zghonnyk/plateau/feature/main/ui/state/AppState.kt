@@ -41,7 +41,7 @@ sealed interface PlantState {
     @Immutable
     data class Creating(
         override val parent: Overview,
-        val form: AddPlantForm = AddPlantForm.empty(),
+        val form: AddPlantForm,
         val speciesList: List<DomainSpecies>,
     ) : Screen
 
@@ -155,6 +155,7 @@ sealed interface PlantState {
             val nameInput: TextFieldState,
             val selectedSpeciesId: Long?,
             val isDropdownExpanded: Boolean = false,
+            val speciesList: List<DomainSpecies>,
         ) : PlantModal
     }
 }

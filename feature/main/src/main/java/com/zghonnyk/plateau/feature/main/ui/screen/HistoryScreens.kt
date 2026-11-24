@@ -45,7 +45,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     plant: PlantUi,
@@ -275,7 +274,6 @@ fun HistoryWatersScreen(
     onDelete: (WateringUiModel) -> Unit,
 ) = HistoryContent(onBack, screenName, elements, onEdit, onDelete)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T : HistoryUIModel> HistoryContent(
     onBack: () -> Unit,

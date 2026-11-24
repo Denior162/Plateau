@@ -31,20 +31,31 @@ class MainActivity : ComponentActivity() {
                 val pendingDeletes by viewModel.pendingDeletes.collectAsStateWithLifecycle()
                 val clipboard = LocalClipboard.current
                 LaunchedEffect(viewModel) {
-                    viewModel.effects.collect { effect ->
+                    viewModel.uiEffects.collect { effect ->
                         when (effect) {
                             is PlantsViewModel.PlantEffect.CopyToClipboard -> clipboard.setClipEntry(
                                 ClipData.newPlainText(effect.label, effect.text).toClipEntry()
                             )
 
                             is PlantsViewModel.PlantEffect.ShowMessage -> {
-                            android.widget.Toast.makeText(this@MainActivity, effect.text.asString(this@MainActivity), android.widget.Toast.LENGTH_SHORT).show()
-                        }
+                                android.widget.Toast.makeText(
+                                    this@MainActivity,
+                                    effect.text.asString(this@MainActivity),
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                     }
                 }
 
-                val send = remember { { intent: PlantIntent -> viewModel.onIntent(intent, Instant.now()) } }
+                val send = remember {
+                    { intent: PlantIntent ->
+                        viewModel.onIntent(
+                            intent,
+                            Instant.now()
+                        )
+                    }
+                }
                 BackAwareAppRoot(
                     state = state,
                     pendingDeletes = pendingDeletes,

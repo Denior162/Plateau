@@ -1,15 +1,5 @@
 package com.zghonnyk.domain
 
-import java.time.Instant
-
-sealed interface Event {
-    val at: Instant
-}
-
-data class Weighed(val id: MeasurementId, override val at: Instant, val grams: Double) : Event
-data class Watered(override val at: Instant) : Event
-data class Repotted(override val at: Instant) : Event
-
 sealed interface PhaseStart {
     data object First : PhaseStart
     data object Watering : PhaseStart

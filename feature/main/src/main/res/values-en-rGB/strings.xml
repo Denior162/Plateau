@@ -1,10 +1,128 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="view_watering_history">View watering history</string>
     <string name="app_name">Plateau</string>
     <string name="add_plant">Add plant</string>
-    <string name="adding_plant">Add new plant</string>
-    <string name="add_plant_name_placeholder">Write plant name there</string>
+    <string name="adding_plant">New plant</string>
+    <string name="add_plant_name_placeholder">Enter plant name</string>
+    <string name="export_csv">Export CSV</string>
+    <string name="import_csv">Import CSV</string>
+    <string name="view_measurement_history">View measurement history</string>
+    <string name="drying_insufficient_data">Insufficient data</string>
+    <string name="drying_still">Drying (%1$.1f g/day)</string>
+    <string name="drying_near_plateau">Near plateau (%1$.1f g/day)</string>
+    <string name="days_awaiting">Awaiting measurements</string>
+    <string name="days_plateau_reached">Plateau reached</string>
+    <string name="add_measurement">Add measurement</string>
+    <string name="cu_watered">Watered?</string>
+    <string name="not_watered_yet">Not watered yet</string>
+    <plurals name="days_to_plateau">
+        <item quantity="one">~%d day to plateau</item>
+        <item quantity="other">~%d days to plateau</item>
+    </plurals>
+    <string name="no_meas">No measurements yet.\nTime to add the first weight!</string>
+    <string name="expected_weight_placeholder">%1$d–%2$d g</string>
+    <string name="specify_pruning">Specify pruning</string>
     <string name="weight_after_pruning">Weight after pruning</string>
-    <string name="add_picture">Add picture</string>
+    <string name="prune_dialog_title">After pruning, the cycle will be updated. Only the substrate moisture from the previous cycle will be taken into account.</string>
+    <string name="add_picture">Add photo</string>
     <string name="go_back">Go back</string>
+
+    <!-- MeasurementDateTimePicker -->
+    <string name="picker_next">Next</string>
+    <string name="picker_cancel">Cancel</string>
+    <string name="picker_select_time">Select time</string>
+    <string name="picker_future_error">Cannot select a future time</string>
+    <string name="picker_done">Done</string>
+
+    <!-- AddPlantScreen -->
+    <string name="species_unselected">No species selected</string>
+    <string name="species_unknown">Unknown species</string>
+    <string name="i_dont_know">I don\'t know</string>
+
+    <!-- AnalyticsScreen -->
+    <string name="analytics_title">Plateau Analytics</string>
+    <string name="analytics_back">Back</string>
+    <string name="analytics_global_title">Global Plateau Analytics</string>
+    <string name="analytics_global_median">Median drying rate: %1$.1f g/day</string>
+    <string name="analytics_global_subtitle">Across all species and plants</string>
+    <string name="analytics_moisture_loss_title">💧 Moisture Loss by Species</string>
+    <string name="analytics_select_species">Select species</string>
+    <string name="analytics_total_evaporated">Total evaporated: %1$.1f g</string>
+    <string name="analytics_species_empty">Species list is empty</string>
+    <string name="analytics_species_stats_title">🌿 Statistics by Species</string>
+    <string name="analytics_species_stats_subtitle">Species with 2+ measurements</string>
+    <string name="analytics_insufficient_data">Insufficient data</string>
+    <string name="analytics_stat_plants">Plants: %1$d</string>
+    <string name="analytics_stat_measurements">Measurements: %1$d</string>
+    <string name="analytics_stat_avg_weight">Avg weight: %1$.1f g</string>
+    <string name="analytics_stat_max_weight">Max weight: %1$.1f g</string>
+    <string name="analytics_large_plants_title">🏆 Large Plants (Peak Weight)</string>
+    <string name="analytics_min_peak_weight">Min peak weight: %1$d g</string>
+    <string name="analytics_no_large_plants">No plants with weight ≥ %1$d g</string>
+    <string name="analytics_plant_measurements">Measurements: %1$d</string>
+    <string name="analytics_dynamics_title">Dynamics over Period</string>
+    <string name="analytics_from_date">From: 01.09.2026</string>
+    <string name="analytics_to_date">To: Today</string>
+    <string name="analytics_no_data_period">No data for this period</string>
+    <string name="analytics_period_summary">Measurements: %1$d, avg weight: %2$.1f g</string>
+
+    <!-- HistoryScreens -->
+    <string name="history_weighing_item">%1$s — %2$s g</string>
+    <string name="history_watering_item">%1$s — Watering (%2$s)</string>
+    <string name="history_volume_ml">%1$s ml</string>
+    <string name="history_volume_not_specified">Volume not specified</string>
+    <string name="history_edit_measurement">Edit measurement</string>
+    <string name="history_edit_watering">Edit watering</string>
+    <string name="history_weight_label">Weight (g)</string>
+    <string name="history_volume_label">Water volume (ml)</string>
+    <string name="history_cd_edit">Edit</string>
+    <string name="history_cd_delete">Delete</string>
+
+    <!-- PlantScreen -->
+    <string name="watering_dialog_title">Watering</string>
+    <string name="watering_dialog_desc">A new measurement cycle will start after watering.</string>
+    <string name="watering_volume_label">Water volume (ml), optional</string>
+    <string name="watering_weight_label">Weight after watering and full drainage (g)</string>
+    <string name="cd_specify_datetime">Specify date/time</string>
+    <string name="repotting_dialog_title">Repotting</string>
+    <string name="repotting_dialog_desc">A new measurement cycle will start after repotting.</string>
+    <string name="repotting_weight_label">Weight after repotting (g)</string>
+    <string name="pot_mass_label">Pot weight (g)</string>
+    <string name="cd_left">Left</string>
+    <string name="cd_right">Right</string>
+    <string name="cd_cancel">Cancel</string>
+    <string name="cd_save">Save</string>
+    <string name="save_button">Save</string>
+    <string name="cancel_button">Cancel</string>
+    <string name="drying_analytics_title">Drying Analytics</string>
+    <string name="recommended_weighing_interval">Recommended weighing interval: %1$d h</string>
+    <string name="current_moisture">Current moisture: %1$s</string>
+    <string name="predicted_plateau_weight">Predicted plateau weight: %1$d g</string>
+    <string name="rmse_format">RMSE: %1$.1f g</string>
+
+    <!-- PotsScreen -->
+    <string name="cd_analytics">Analytics</string>
+    <string name="edit_plant_title">Edit plant</string>
+    <string name="unknown_species_label">Incertae sedis (unknown species)</string>
+    <string name="elapsed_days">%1$d d</string>
+    <string name="elapsed_hours">%1$d h</string>
+    <string name="cd_edit_plant">Edit plant</string>
+    <string name="cd_delete_plant">Delete plant</string>
+    <string name="undo_delete">Undo</string>
+
+    <!-- SpeciesScreen -->
+    <string name="species_screen_title">Plant species</string>
+    <string name="species_id_format">ID: %1$s</string>
+
+    <!-- ViewModel -->
+    <string name="error_cannot_open_file">Failed to open file</string>
+    <string name="export_ready">Export ready</string>
+    <string name="export_error">Export error: %1$s</string>
+    <string name="import_success">Plants: +%1$d, measurements: +%2$d, duplicates skipped: %3$d</string>
+    <string name="import_error">Import error: %1$s</string>
+    <string name="error_failed_to_add_photo">Failed to add photo</string>
+    <string name="error_failed_to_save_watering">Failed to save watering changes</string>
+    <string name="error_measurement_exists_at_time">Failed to save: a measurement already exists at this time</string>
+    <string name="weighting_interval_is_not_calculated">Weighing interval is not calculated</string>
 </resources>

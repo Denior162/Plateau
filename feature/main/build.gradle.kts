@@ -48,5 +48,6 @@ dependencies {
     implementation(project(":vector-zipper"))
     implementation(project(":domain"))
     implementation(project(":core:ui"))
+    testImplementation(libs.junit)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

@@ -137,8 +137,8 @@ class AnomalyDetectionBacktest {
                             is Verdict.TooHeavy -> v.expected.grams
                         }
                         val sigma = when (v) {
-                            is Verdict.TooLight -> v.expected.sigma
-                            is Verdict.TooHeavy -> v.expected.sigma
+                            is Verdict.TooLight -> (v.expected.high - v.expected.low) / 2.0
+                            is Verdict.TooHeavy -> (v.expected.high - v.expected.low) / 2.0
                         }
                         val diff = candidate.weightGrams - expectedGrams
                         println("FA | ${candidate.timestamp} | i=$i/${phase.size} | cand:${candidate.weightGrams}g | exp:${"%.1f".format(expectedGrams)}g ±${"%.1f".format(sigma)}g | diff:${"%.1f".format(diff)}g | verdict:$v")

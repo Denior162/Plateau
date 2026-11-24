@@ -125,12 +125,10 @@ private fun editMeasurement(
 )
 
 private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
-    // эффекты: допустимы из любого состояния, как было в handleIntent
     is I.Details.DeleteMeasurement -> Next(state, Cmd.DeleteMeasurement(i.id))
     is I.Details.DeleteWatering -> Next(state, Cmd.DeleteWatering(i.id))
     is I.Details.CopyMonth -> copyMonth(state, i.month)
 
-    // только из Details.Plant
     I.Details.GoLeft -> onPlant(state) { it.copy(zipper = it.zipper.goBack()) }
     I.Details.GoRight -> onPlant(state) { it.copy(zipper = it.zipper.goForward()) }
     I.Details.OpenAddMeasurement -> onPlant(state) { AddMeasurement(parent = it) }
@@ -139,17 +137,20 @@ private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
     I.Details.OpenRepottingDialog -> onPlant(state) { Repotting(parent = it) }
     I.Details.OpenMeasurementHistory,
     I.Details.OpenWateringHistory -> onPlant(state) { History(parent = it) }
-    I.Details.StartEditingPlant -> onPlant(state) {
-        EditPlant(
-            parent = it,
-            plantId = it.focus.id,
-            nameInput = TextFieldState(it.focus.name),
-            selectedSpeciesId = it.focus.speciesId,
-            isDropdownExpanded = false,
+    I.Details.StartEditingPlant -> (state as? Plant)?.let {
+        Next(
+            EditPlant(
+                parent = it,
+                plantId = it.focus.id,
+                nameInput = TextFieldState(it.focus.name),
+                selectedSpeciesId = it.focus.speciesId,
+                isDropdownExpanded = false,
+                speciesList = emptyList(),
+            ),
+            Cmd.LoadEditingSpecies
         )
-    }
+    } ?: Next.just(state)
 
-    // из Plant и из History
     is I.Details.StartEditingMeasurement -> Next.just(
         when (state) {
             is Plant -> editMeasurement(History(parent = state), i)
@@ -415,8 +416,11 @@ private fun S.Active.onLoaded(m: I.Loaded): S.Active = when (m) {
     is I.Loaded.Species ->
         (this as? S.Overview)?.let { S.Species(parent = it, species = m.species) } ?: this
 
-    is I.Loaded.EditingSpecies ->
-        (this as? S.EditingName)?.copy(speciesList = m.species) ?: this
+    is I.Loaded.EditingSpecies -> when (this) {
+        is S.EditingName -> copy(speciesList = m.species)
+        is EditPlant -> copy(speciesList = m.species)
+        else -> this
+    }
 
     is I.Loaded.CreatingSpecies ->
         (this as? S.Creating)?.copy(speciesList = m.species) ?: this

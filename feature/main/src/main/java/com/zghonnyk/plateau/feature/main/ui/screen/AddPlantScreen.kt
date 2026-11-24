@@ -42,8 +42,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.tooling.preview.Wallpapers
 import coil.compose.AsyncImage
 import com.zghonnyk.domain.Species
 import com.zghonnyk.plateau.feature.main.R
@@ -245,13 +243,4 @@ fun AddPlantPhotoButton(onClick: () -> Unit) = IconButton(
         painterResource(R.drawable.add_photo),
         contentDescription = stringResource(R.string.add_picture)
     )
-}
-
-
-@Preview(wallpaper = Wallpapers.RED_DOMINATED_EXAMPLE)
-@Composable
-fun AddPlantButtonPreview() {
-    MaterialTheme {
-        AddPlantPhotoButton {}
-    }
 }

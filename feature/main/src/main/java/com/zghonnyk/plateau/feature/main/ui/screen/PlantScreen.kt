@@ -24,7 +24,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -32,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -55,7 +60,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.zghonnyk.domain.DryingForecast
 import com.zghonnyk.domain.MeasurementId
@@ -82,7 +86,6 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import androidx.compose.material3.MaterialTheme as Theme
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlantScreen(
     plant: PlantState.Details.Plant,
@@ -293,9 +296,13 @@ private fun DetailsDialogs(modal: PlantState.PlantModal?, onIntent: (PlantIntent
             onCancel = { onIntent(PlantIntent.Back) },
         )
 
-        is PlantState.PlantModal.EditPlant -> {
-            TODO()
-        }
+        is PlantState.PlantModal.EditPlant -> EditPlantDialog(
+            modal = modal,
+            onSave = { onIntent(PlantIntent.EditingPlant.Save) },
+            onCancel = { onIntent(PlantIntent.Back) },
+            onToggleDropdown = { expanded -> onIntent(PlantIntent.EditingPlant.ToggleDropdown(expanded)) },
+            onSelectSpecies = { speciesId -> onIntent(PlantIntent.EditingPlant.SelectSpecies(speciesId)) },
+        )
 
         is PlantState.PlantModal.AddMeasurement -> Unit
 
@@ -323,6 +330,88 @@ private fun DetailsDialogs(modal: PlantState.PlantModal?, onIntent: (PlantIntent
         )
 
     }
+}
+
+@Composable
+private fun EditPlantDialog(
+    modal: PlantState.PlantModal.EditPlant,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    onToggleDropdown: (Boolean) -> Unit,
+    onSelectSpecies: (Long?) -> Unit,
+) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.edit_plant_title)) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(spacing.medium),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    state = modal.nameInput,
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = modal.isDropdownExpanded,
+                    onExpandedChange = { onToggleDropdown(!modal.isDropdownExpanded) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val selectedSpeciesName =
+                        modal.speciesList.find { it.id.value == modal.selectedSpeciesId }?.latinName
+                            ?: "Incertae sedis"
+
+                    OutlinedTextField(
+                        value = selectedSpeciesName,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = modal.isDropdownExpanded)
+                        },
+                        modifier = Modifier
+                            .menuAnchor(
+                                ExposedDropdownMenuAnchorType.PrimaryEditable,
+                                enabled = true
+                            )
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = modal.isDropdownExpanded,
+                        onDismissRequest = { onToggleDropdown(false) }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.unknown_species_label)) },
+                            onClick = { onSelectSpecies(null) })
+                        modal.speciesList.forEach { species ->
+                            DropdownMenuItem(
+                                text = { Text(species.latinName) },
+                                onClick = { onSelectSpecies(species.id.value) })
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSave) {
+                Text(stringResource(R.string.save_button))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(stringResource(R.string.cancel_button))
+            }
+        }
+    )
 }
 
 @Composable
@@ -813,7 +902,6 @@ fun RecordCard(record: RecordUiModel, onEdit: () -> Unit, onRemove: () -> Unit) 
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlantAppBar(title: String, scrollBehavior: TopAppBarScrollBehavior, onClose: () -> Unit) =
     LargeTopAppBar(
@@ -879,11 +967,3 @@ fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent
         )
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true)
-@Composable
-fun PlantAppBarPreview() = PlantAppBar(
-    "", TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
-        rememberTopAppBarState()
-    ), onClose = { })
