@@ -356,7 +356,6 @@ class PlantsViewModel(
     fun handleIntent(intent: PlantIntent) {
         when (intent) {
             is PlantIntent.EditingMeasurement.Save -> saveMeasurementEdit()
-            is PlantIntent.EditingName.Save -> saveEditingName()
             is PlantIntent.Overview.StartEditingPlantName -> startEditingPlantName(intent)
             is PlantIntent.Details.DeleteMeasurement -> removeMeasurement(intent.id)
             is PlantIntent.Details.CopyMonth -> copyMonth(intent.month)
@@ -546,17 +545,6 @@ class PlantsViewModel(
             val allSpecies = fetchAllSpecies(database).map { it.toDomain() }
             reduce(PlantIntent.Loaded.CreatingSpecies(allSpecies))
         }
-    }
-
-    private fun saveEditingName() {
-        val s = _uiState.value as? PlantState.EditingName ?: return
-        val newName = s.nameInput.text.toString().trim()
-        if (newName.isEmpty()) return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            updatePlant(database, s.plantId.value, newName, s.selectedSpeciesId)
-        }
-        reduce(PlantIntent.EditingName.Save)
     }
 
     private fun reduce(intent: PlantIntent) = _uiState.update { s ->

@@ -20,10 +20,9 @@ val S.Active.canGoBack: Boolean get() = this !is S.Overview
 
 fun reducePlantState(state: S.Active, intent: I): S.Active = when (intent) {
     I.Back, I.Refresh, is I.Loaded, is I.ExportCsv, is I.ImportCsv,
-    is I.Pruning, is I.Repotting, is I.AddingMeasurement, is I.EditingPlant -> state
+    is I.Pruning, is I.Repotting, is I.AddingMeasurement, is I.EditingPlant, is I.EditingName -> state
 
     is I.Overview -> state.reduceIf<S.Overview> { reduce(intent) }
-    is I.EditingName -> state.reduceIf<S.EditingName> { reduce(intent) }
     is I.Creating -> if (state is S.Creating) state.reduce(intent) else state
     is I.Details -> when (state) {
         is Plant -> state.reduce(intent)
@@ -51,9 +50,9 @@ fun update(state: S.Active, intent: I, now: Instant): Next = when (intent) {
     is I.Creating -> updateCreating(state, intent, now)
     is I.LoggingWatering -> updateLoggingWatering(state, intent, now)
     is I.EditingPlant -> updateEditingPlant(state, intent)
+    is I.EditingName -> updateEditingName(state, intent)
     is I.Overview,
     is I.Details,
-    is I.EditingName,
     is I.EditingMeasurement,
     is I.EditingWatering -> Next.just(reducePlantState(state, intent))
 }
@@ -195,7 +194,6 @@ private fun updateLoggingWatering(state: S.Active, i: I.LoggingWatering, now: In
 private fun updateCreating(state: S.Active, i: I.Creating, now: Instant): Next {
     val s = state as? S.Creating
         ?: return when (i) {
-            // результат пришёл, а экрана создания уже нет: чистим файл
             is I.Creating.AddPhotoCopied -> Next(state, Cmd.DeletePhoto(i.relativePath))
             else -> Next.just(state)
         }
@@ -228,6 +226,24 @@ private fun updateCreating(state: S.Active, i: I.Creating, now: Instant): Next {
         )
     }
 }
+val S.EditingName.canSave: Boolean
+    get() = nameInput.text.toString().trim().isNotEmpty()
+private fun updateEditingName(state: S.Active, i: I.EditingName): Next =
+    (state as? S.EditingName)?.let { s ->
+        when (i) {
+            I.EditingName.Save ->
+                if (s.canSave) Next(
+                    s.parent,
+                    Cmd.UpdatePlant(s.plantId, s.nameInput.text.toString().trim(), s.selectedSpeciesId)
+                ) else Next.just(s)
+
+            is I.EditingName.ToggleDropdown ->
+                Next.just(s.copy(isDropdownExpanded = i.expanded))
+
+            is I.EditingName.SelectSpecies ->
+                Next.just(s.copy(selectedSpeciesId = i.speciesId, isDropdownExpanded = false))
+        }
+    } ?: Next.just(state)
 
 private fun History.reduce(i: I.Details): S.Active = when (i) {
     is I.Details.StartEditingMeasurement -> HistoryModal.EditMeasurement(
@@ -274,15 +290,6 @@ private fun S.Overview.reduce(i: I.Overview): S.Active = when (i) {
         } ?: this
 
     is I.Overview.Deletion -> this
-}
-
-private fun S.EditingName.reduce(i: I.EditingName): S.Active = when (i) {
-    I.EditingName.Save -> parent
-    is I.EditingName.ToggleDropdown -> copy(isDropdownExpanded = i.expanded)
-    is I.EditingName.SelectSpecies -> copy(
-        selectedSpeciesId = i.speciesId,
-        isDropdownExpanded = false
-    )
 }
 
 private fun S.Creating.reduce(i: I.Creating): S.Active = when (i) {
