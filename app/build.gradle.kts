@@ -16,16 +16,25 @@ android {
         applicationId = "com.zghonnyk.plateau"
         minSdk = 30
         targetSdk = 37
-        versionCode = 10
-        versionName = "1.0.10"
+        versionCode = 11
+        versionName = "1.0.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
 
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
