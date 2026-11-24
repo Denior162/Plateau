@@ -12,16 +12,13 @@ import com.zghonnyk.domain.DryingConfig
 import com.zghonnyk.domain.DryingForecast
 import com.zghonnyk.domain.Measurement
 import com.zghonnyk.domain.MeasurementId
-import com.zghonnyk.domain.MonthlyStatItem
 import com.zghonnyk.domain.PlantId
-import com.zghonnyk.domain.PlantPeakWeight
 import com.zghonnyk.domain.PlantTemporalEvent
 import com.zghonnyk.domain.PotId
 import com.zghonnyk.domain.PruningEvent
 import com.zghonnyk.domain.PruningEventId
 import com.zghonnyk.domain.RepottingEvent
 import com.zghonnyk.domain.RepottingEventId
-import com.zghonnyk.domain.SpeciesMeasurementStats
 import com.zghonnyk.domain.Tare
 import com.zghonnyk.domain.WateringEvent
 import com.zghonnyk.domain.WateringEventId
@@ -48,16 +45,10 @@ import com.zghonnyk.plateau.data.repository.observeAllPhotos
 import com.zghonnyk.plateau.data.repository.observeAllPrunings
 import com.zghonnyk.plateau.data.repository.observeAllRepottings
 import com.zghonnyk.plateau.data.repository.observeAllWaterings
-import com.zghonnyk.plateau.data.repository.observeGlobalMedianEvaporation
-import com.zghonnyk.plateau.data.repository.observeMonthlyStats
-import com.zghonnyk.plateau.data.repository.observePlantsWithMinPeakWeight
 import com.zghonnyk.plateau.data.repository.observePlantsWithSpecies
-import com.zghonnyk.plateau.data.repository.observeSpeciesMeasurementStats
-import com.zghonnyk.plateau.data.repository.observeTotalEvaporatedBySpecies
 import com.zghonnyk.plateau.data.repository.removePlant
 import com.zghonnyk.plateau.data.repository.updateMeasurement
 import com.zghonnyk.plateau.data.repository.updatePlant
-import com.zghonnyk.plateau.data.toDomain
 import com.zghonnyk.plateau.di.PlantDeps
 import com.zghonnyk.plateau.domain.importBackup
 import com.zghonnyk.plateau.domain.parseBackup
@@ -76,6 +67,8 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.applyPlants
 import com.zghonnyk.plateau.feature.main.ui.state.update
+import com.zghonnyk.plateau.feature.main.ui.state.updateDeletions
+import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.PlantEffect.CopyToClipboard
 import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.PlantEffect.ShowMessage
 import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.UiText.Resource
 import kotlinx.coroutines.Dispatchers
@@ -99,7 +92,6 @@ import java.time.temporal.ChronoUnit
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.TimeSource
 import kotlin.time.toJavaDuration
 
 
@@ -136,11 +128,18 @@ class PlantsViewModel(
         _now.value = now.truncatedTo(ChronoUnit.MINUTES)
         handleIntent(intent)
     }
+    private val _pendingDeletes = MutableStateFlow<List<PendingDelete>>(emptyList())
+    val pendingDeletes: StateFlow<List<PendingDelete>> = _pendingDeletes.asStateFlow()
+    private val timers = mutableMapOf<PlantId, Job>()
 
-    private val _pendingDelete = MutableStateFlow<PendingDelete?>(null)
-    val pendingDelete: StateFlow<PendingDelete?> = _pendingDelete.asStateFlow()
+    fun handleIntent(intent: PlantIntent) =
+        if (intent is PlantIntent.Overview.Deletion) dispatchDeletion(intent) else dispatch(intent)
 
-    private var deleteJob: Job? = null
+    private fun dispatchDeletion(intent: PlantIntent.Overview.Deletion) {
+        val (pending, cmd) = updateDeletions(_pendingDeletes.value, intent, now().toEpochMilli())
+        _pendingDeletes.value = pending
+        run(cmd)
+    }
     private fun exportCsv(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             val msg: UiText = try {
@@ -180,24 +179,6 @@ class PlantsViewModel(
         }
     }
 
-    fun getGlobalMedian(): Flow<Double> =
-        observeGlobalMedianEvaporation(database).flowOn(Dispatchers.IO)
-
-    fun getSpeciesMeasurementStats(): Flow<List<SpeciesMeasurementStats>> =
-        observeSpeciesMeasurementStats(database).flowOn(Dispatchers.IO)
-
-    fun getPlantsWithMinPeakWeight(minWeight: Double): Flow<List<PlantPeakWeight>> =
-        observePlantsWithMinPeakWeight(database, minWeight).flowOn(Dispatchers.IO)
-
-    fun getTotalEvaporatedBySpecies(speciesId: Long): Flow<Double> =
-        observeTotalEvaporatedBySpecies(database, speciesId).flowOn(Dispatchers.IO)
-
-    fun getSpeciesList(): List<com.zghonnyk.domain.Species> =
-        fetchAllSpecies(database).map { it.toDomain() }
-
-    fun getMonthlyStats(): Flow<List<MonthlyStatItem>> =
-        observeMonthlyStats(database).flowOn(Dispatchers.IO)
-
     private val phaseAnalysisCache =
         java.util.concurrent.ConcurrentHashMap<List<Measurement>, DryingForecast>()
 
@@ -207,7 +188,6 @@ class PlantsViewModel(
             ActiveDryingPhase(measurements).analyzeDrying(DryingConfig())
         }
     }
-
     private val plantsWithPhotos = combine(
         observePlantsWithSpecies(database),
         observeAllPhotos(database),
@@ -352,16 +332,6 @@ class PlantsViewModel(
         lastWeighedAt?.let { last -> interval?.let { last.plus(it.toJavaDuration()) } }
 
 
-    fun handleIntent(intent: PlantIntent) {
-        when (intent) {
-            is PlantIntent.Overview.Deletion.Request -> startDelete(intent.plantId)
-            is PlantIntent.Overview.Deletion.Undo -> undoDelete()
-            is PlantIntent.Overview.SelectPlant ->
-                if (_pendingDelete.value?.plantId != intent.plantId) dispatch(intent)
-            else -> dispatch(intent)
-        }
-    }
-
     private fun dispatch(intent: PlantIntent) {
         val s = _uiState.value as? PlantState.Active ?: return
         val (next, cmd) = update(s, intent, now())
@@ -455,7 +425,18 @@ class PlantsViewModel(
             is Cmd.DeleteWatering -> viewModelScope.launch(Dispatchers.IO) {
                 database.plateauDatabaseQueries.deleteWatering(cmd.id.value)
             }
-            is Cmd.CopyToClipboard -> _effects.trySend(PlantEffect.CopyToClipboard(cmd.label, cmd.text))
+            is Cmd.CopyToClipboard -> _effects.trySend(CopyToClipboard(cmd.label, cmd.text))
+            is Cmd.StartDeleteTimer -> {
+                timers[cmd.plantId] = viewModelScope.launch {
+                    delay(cmd.delayMs.milliseconds)
+                    dispatchDeletion(PlantIntent.Overview.Deletion.Commit(cmd.plantId))
+                }
+            }
+            is Cmd.CancelDeleteTimer -> timers.remove(cmd.plantId)?.cancel()
+            is Cmd.DeletePlant -> {
+                timers.remove(cmd.plantId)
+                viewModelScope.launch(Dispatchers.IO) { removePlant(database, cmd.plantId.value) }
+            }
         }
     }
 
@@ -493,42 +474,9 @@ class PlantsViewModel(
         }
     }
 
-    private fun startDelete(plantId: PlantId) {
-        if (_pendingDelete.value?.plantId == plantId) return
-        _pendingDelete.value?.let { commitDelete(it.plantId) }
-        deleteJob?.cancel()
-
-        _pendingDelete.value = PendingDelete(plantId, 1f)
-        deleteJob = viewModelScope.launch {
-            val start = TimeSource.Monotonic.markNow()
-            while (true) {
-                val elapsed = start.elapsedNow().inWholeMilliseconds
-                if (elapsed >= DELETE_DELAY_MS) break
-                _pendingDelete.value =
-                    PendingDelete(plantId, 1f - elapsed / DELETE_DELAY_MS.toFloat())
-                delay(TICK_MS.milliseconds)
-            }
-            _pendingDelete.value = null
-            commitDelete(plantId)
-        }
-    }
-
-    private fun undoDelete() {
-        if (_pendingDelete.value == null) return
-        deleteJob?.cancel()
-        deleteJob = null
-        _pendingDelete.value = null
-    }
-
-    private fun commitDelete(plantId: PlantId) {
-        viewModelScope.launch(Dispatchers.IO) { removePlant(database, plantId.value) }
-    }
 
 
     companion object {
-        private const val DELETE_DELAY_MS = 10_000L
-        private const val TICK_MS = 50L
-
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as PlateauApplication

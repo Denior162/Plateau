@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlateauTheme(isSystemInDarkTheme()) {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
-                val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
+                val pendingDeletes by viewModel.pendingDeletes.collectAsStateWithLifecycle()
                 val clipboard = LocalClipboard.current
                 LaunchedEffect(viewModel) {
                     viewModel.effects.collect { effect ->
@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
                 val send = remember { { intent: PlantIntent -> viewModel.onIntent(intent, Instant.now()) } }
                 BackAwareAppRoot(
                     state = state,
-                    pendingDelete = pendingDelete,
+                    pendingDeletes = pendingDeletes,
                     onIntent = send
                 )
             }

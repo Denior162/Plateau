@@ -184,18 +184,17 @@ sealed interface PlantIntent {
     }
 
     sealed interface Overview : PlantIntent {
-
         data class SelectPlant(val plantId: PlantId) : Overview
         data object OpenAddPlant : Overview
         data class StartEditingPlantName(val plantId: PlantId) : Overview
 
         sealed interface Deletion : Overview {
             data class Request(val plantId: PlantId) : Deletion
-            data object Undo : Deletion
+            data class Undo(val plantId: PlantId) : Deletion
+            data class Commit(val plantId: PlantId) : Deletion
         }
     }
 
-    // PlantState.EditingName
     sealed interface EditingName : PlantIntent {
         data object Save : EditingName
         data class ToggleDropdown(val expanded: Boolean) : EditingName
@@ -242,7 +241,6 @@ sealed interface PlantIntent {
 
     }
 
-    // PlantState.PlantModal.AddMeasurement
     sealed interface AddingMeasurement : PlantIntent {
         data object Save : AddingMeasurement
         data object OpenDateTimePicker : AddingMeasurement
@@ -250,7 +248,6 @@ sealed interface PlantIntent {
         data class SetMeasurementTimestamp(val timestamp: Instant?) : AddingMeasurement
     }
 
-    // PlantState.PlantModal.LogWatering
     sealed interface LoggingWatering : PlantIntent {
         data object Save : LoggingWatering
         data object OpenDateTimePicker : LoggingWatering
@@ -258,7 +255,6 @@ sealed interface PlantIntent {
         data class SetWateringTimestamp(val timestamp: Instant?) : LoggingWatering
     }
 
-    // PlantState.PlantModal.EditPlant
     sealed interface EditingPlant : PlantIntent {
         data object Save : EditingPlant
         data class ToggleDropdown(val expanded: Boolean) : EditingPlant

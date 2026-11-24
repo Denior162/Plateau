@@ -3,6 +3,9 @@ package com.zghonnyk.plateau.feature.main.ui.screen
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -27,7 +30,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -45,7 +47,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.plateau.feature.main.R
+import com.zghonnyk.plateau.feature.main.ui.state.DELETE_DELAY_MS
 import com.zghonnyk.plateau.feature.main.ui.state.PendingDelete
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
@@ -86,8 +88,8 @@ fun PotsScreen(
     onCancelEdit: () -> Unit,
     onToggleDropdown: (Boolean) -> Unit,
     onSelectSpecies: (Long?) -> Unit,
-    pendingDelete: PendingDelete?,
-    onUndoDelete: () -> Unit
+    pendingDeletes: List<PendingDelete>,
+    onUndoDelete: (PlantId) -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val lazyListState = rememberLazyListState()
@@ -114,13 +116,12 @@ fun PotsScreen(
                 onClick = onAddPlantClick, expanded = isFabExpanded
             )
         }
-    ) { innerPadding ->
-        PotsContent(
+    ) { innerPadding -> PotsContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .padding(horizontal = spacing.large),
             plants = plants,
-            pendingDelete = pendingDelete,
+            pendingDeletes = pendingDeletes,
             onSelect = onSelect,
             onEdit = onEdit,
             onDelete = onDelete,
@@ -257,7 +258,6 @@ private val CSV_MIME_TYPES = arrayOf(
 @Composable
 private fun CsvMenuPreview() = CsvMenu(onExport = {}, onImport = {})
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlantsTopBar(
     onExport: (Uri) -> Unit,
@@ -294,11 +294,11 @@ fun AddPlantFab(
 fun PotsContent(
     modifier: Modifier = Modifier,
     plants: List<PlantUi>,
-    pendingDelete: PendingDelete?,
+    pendingDeletes:  List<PendingDelete>,
     onSelect: (PlantId) -> Unit,
     onEdit: (PlantId) -> Unit,
     onDelete: (PlantId) -> Unit,
-    onUndoDelete: () -> Unit,
+    onUndoDelete: (PlantId) -> Unit,
     lazyListState: LazyListState
 ) = LazyColumn(
     modifier = modifier.fillMaxSize(),
@@ -306,8 +306,9 @@ fun PotsContent(
     verticalArrangement = Arrangement.spacedBy(spacing.small)
 ) {
     items(items = plants, key = { it.id.value }) { plant ->
-        val cardState = pendingDelete?.takeIf { it.plantId == plant.id }
-            ?.let { PlantCardState.Deletion(it.progress) } ?: PlantCardState.Default
+        val cardState = pendingDeletes.firstOrNull { it.plantId == plant.id }
+            ?.let { PlantCardState.Deletion(it.deadlineMs) }
+            ?: PlantCardState.Default
 
         @Composable
         fun Long.formatElapsedTime(): String {
@@ -329,36 +330,15 @@ fun PotsContent(
             onSelect = { onSelect(plant.id) },
             onEdit = { onEdit(plant.id) },
             onDelete = { onDelete(plant.id) },
-            onUndoDelete = onUndoDelete,
+            onUndoDelete = { onUndoDelete(plant.id) },
 
             )
     }
 }
 
-
-sealed class OnePlantItemState {
-
-    data class Default(
-        val plantName: String,
-        val plantSpecieName: String,
-        val onSelect: () -> Unit,
-        val onEdit: () -> Unit,
-        val onDelete: () -> Unit,
-    ) : OnePlantItemState()
-
-    data class Deletion(
-        val plantName: String,
-        val plantSpecieName: String,
-        val onBackDeletedPlant: () -> Unit,
-        val deleteProgress: Float
-    ) : OnePlantItemState()
-}
-
-
-@Immutable
 sealed interface PlantCardState {
     data object Default : PlantCardState
-    data class Deletion(val progress: Float) : PlantCardState
+    data class Deletion(val deadlineMs: Long) : PlantCardState
 }
 
 @Composable
@@ -394,15 +374,7 @@ fun OnePlantItem(
             isReadyForAction = isReadyForAction,
             onClick = if (state is PlantCardState.Default) onSelect else null,
             bottom = {
-                if (state is PlantCardState.Deletion) {
-                    LinearProgressIndicator(
-                        progress = { state.progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .graphicsLayer(scaleX = -1f)
-                    )
-                }
+                if (state is PlantCardState.Deletion) DeletionProgress(state.deadlineMs)
             },
             elapsedSinceLastWeighing = elapsedSinceLastWeighing
         )
@@ -434,6 +406,33 @@ fun OnePlantItem(
         }
     }
 }
+
+@Composable
+private fun DeletionProgress(deadlineMs: Long) {
+    val progress = remember(deadlineMs) { Animatable(fractionLeft(deadlineMs)) }
+    LaunchedEffect(deadlineMs) {
+        progress.animateTo(
+            targetValue = 0f,
+            animationSpec = tween(
+                durationMillis = remainingMs(deadlineMs).toInt(),
+                easing = LinearEasing,
+            ),
+        )
+    }
+    LinearProgressIndicator(
+        progress = { progress.value },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .graphicsLayer(scaleX = -1f),
+    )
+}
+
+private fun remainingMs(deadlineMs: Long): Long =
+    (deadlineMs - System.currentTimeMillis()).coerceIn(0L, DELETE_DELAY_MS)
+
+private fun fractionLeft(deadlineMs: Long): Float =
+    remainingMs(deadlineMs) / DELETE_DELAY_MS.toFloat()
 
 @Composable
 private fun PlantCard(

@@ -2,6 +2,7 @@ package com.zghonnyk.plateau.feature.main.ui.state
 
 import androidx.compose.foundation.text.input.TextFieldState
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.PlantId
 import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.History
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryMeas
@@ -19,6 +20,9 @@ import java.time.Instant
 import java.time.YearMonth
 import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent as I
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState as S
+
+const val DELETE_DELAY_MS = 10_000L
+
 val S.Active.canGoBack: Boolean get() = this !is S.Overview
 
 fun update(state: S.Active, intent: I, now: Instant): Next = when (intent) {
@@ -40,12 +44,6 @@ fun update(state: S.Active, intent: I, now: Instant): Next = when (intent) {
     is I.Details -> updateDetails(state, intent)
 }
 
-private fun reduceDetails(state: S.Active, intent: I.Details): S.Active = when (state) {
-    is Plant -> state.reduce(intent)
-    is History -> state.reduce(intent)
-    else -> state
-}
-
 private fun measurementEdit(
     state: S.Active,
     id: MeasurementId,
@@ -56,6 +54,31 @@ private fun measurementEdit(
         ?.let { w -> Next(state, Cmd.UpdateMeasurement(id, w, timestamp.toEpochMilli())) }
         ?: Next.just(state)
 
+data class PendingDelete(val plantId: PlantId, val deadlineMs: Long)
+data class DeletionNext(val pending: List<PendingDelete>, val cmd: Cmd)
+
+private fun List<PendingDelete>.isPending(id: PlantId): Boolean = any { it.plantId == id }
+
+private fun resolveDeletion(pending: List<PendingDelete>, id: PlantId, cmd: Cmd): DeletionNext =
+    if (pending.isPending(id)) DeletionNext(pending.filterNot { it.plantId == id }, cmd)
+    else DeletionNext(pending, Cmd.None)
+
+fun updateDeletions(
+    pending: List<PendingDelete>,
+    intent: I.Overview.Deletion,
+    nowMs: Long,
+): DeletionNext = when (intent) {
+    is I.Overview.Deletion.Request ->
+        if (pending.isPending(intent.plantId)) DeletionNext(pending, Cmd.None)
+        else DeletionNext(
+            pending + PendingDelete(intent.plantId, nowMs + DELETE_DELAY_MS),
+            Cmd.StartDeleteTimer(intent.plantId, DELETE_DELAY_MS),
+        )
+    is I.Overview.Deletion.Undo ->
+        resolveDeletion(pending, intent.plantId, Cmd.CancelDeleteTimer(intent.plantId))
+    is I.Overview.Deletion.Commit ->
+        resolveDeletion(pending, intent.plantId, Cmd.DeletePlant(intent.plantId))
+}
 private fun updateEditingWatering(state: S.Active, i: I.EditingWatering): Next =
     (state as? HistoryModal.EditWatering)?.let { s ->
         when (i) {
@@ -83,18 +106,68 @@ private fun updateEditingWatering(state: S.Active, i: I.EditingWatering): Next =
         }
     } ?: Next.just(state)
 
+private inline fun onPlant(state: S.Active, f: (Plant) -> S.Active): Next =
+    Next.just((state as? Plant)?.let(f) ?: state)
+
+private inline fun onHistory(state: S.Active, f: (History) -> S.Active): Next =
+    Next.just((state as? History)?.let(f) ?: state)
+
+private fun editMeasurement(
+    parent: History,
+    i: I.Details.StartEditingMeasurement,
+): S.Active = HistoryModal.EditMeasurement(
+    parent = parent,
+    measurementId = i.id,
+    weightInput = TextFieldState(i.currentWeightString),
+    originalTimestamp = i.timestamp,
+    timestamp = i.timestamp,
+    isDateTimePickerOpen = false,
+)
+
 private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
+    // эффекты: допустимы из любого состояния, как было в handleIntent
     is I.Details.DeleteMeasurement -> Next(state, Cmd.DeleteMeasurement(i.id))
     is I.Details.DeleteWatering -> Next(state, Cmd.DeleteWatering(i.id))
     is I.Details.CopyMonth -> copyMonth(state, i.month)
 
-    I.Details.GoLeft, I.Details.GoRight,
-    I.Details.OpenPruning, I.Details.OpenRepottingDialog,
-    I.Details.OpenAddMeasurement, I.Details.OpenWateringDialog,
-    I.Details.OpenMeasurementHistory, I.Details.OpenWateringHistory,
-    I.Details.StartEditingPlant,
-    is I.Details.StartEditingMeasurement,
-    is I.Details.StartEditingWatering -> Next.just(reduceDetails(state, i))
+    // только из Details.Plant
+    I.Details.GoLeft -> onPlant(state) { it.copy(zipper = it.zipper.goBack()) }
+    I.Details.GoRight -> onPlant(state) { it.copy(zipper = it.zipper.goForward()) }
+    I.Details.OpenAddMeasurement -> onPlant(state) { AddMeasurement(parent = it) }
+    I.Details.OpenWateringDialog -> onPlant(state) { LogWatering(parent = it) }
+    I.Details.OpenPruning -> onPlant(state) { Pruning(parent = it) }
+    I.Details.OpenRepottingDialog -> onPlant(state) { Repotting(parent = it) }
+    I.Details.OpenMeasurementHistory,
+    I.Details.OpenWateringHistory -> onPlant(state) { History(parent = it) }
+    I.Details.StartEditingPlant -> onPlant(state) {
+        EditPlant(
+            parent = it,
+            plantId = it.focus.id,
+            nameInput = TextFieldState(it.focus.name),
+            selectedSpeciesId = it.focus.speciesId,
+            isDropdownExpanded = false,
+        )
+    }
+
+    // из Plant и из History
+    is I.Details.StartEditingMeasurement -> Next.just(
+        when (state) {
+            is Plant -> editMeasurement(History(parent = state), i)
+            is History -> editMeasurement(state, i)
+            else -> state
+        }
+    )
+
+    is I.Details.StartEditingWatering -> onHistory(state) {
+        HistoryModal.EditWatering(
+            parent = it,
+            wateringId = i.wateringEventId,
+            volumeInput = TextFieldState(i.currentMl),
+            originalTimestamp = i.timestamp,
+            timestamp = i.timestamp,
+            isDateTimePickerOpen = false,
+        )
+    }
 }
 
 private fun copyMonth(state: S.Active, month: YearMonth): Next =
@@ -336,59 +409,6 @@ private fun updateEditingName(state: S.Active, i: I.EditingName): Next =
                 Next.just(s.copy(selectedSpeciesId = i.speciesId, isDropdownExpanded = false))
         }
     } ?: Next.just(state)
-
-private fun History.reduce(i: I.Details): S.Active = when (i) {
-    is I.Details.StartEditingMeasurement -> HistoryModal.EditMeasurement(
-        parent = this,
-        measurementId = i.id,
-        weightInput = TextFieldState(i.currentWeightString),
-        originalTimestamp = i.timestamp,
-        timestamp = i.timestamp,
-    )
-
-    is I.Details.StartEditingWatering -> HistoryModal.EditWatering(
-        parent = this,
-        wateringId = i.wateringEventId,
-        volumeInput = TextFieldState(i.currentMl),
-        originalTimestamp = i.timestamp,
-        timestamp = i.timestamp,
-    )
-
-    else -> this
-}
-
-private fun Plant.reduce(i: I.Details): S.Active = when (i) {
-    I.Details.GoLeft -> copy(zipper = zipper.goBack())
-    I.Details.GoRight -> copy(zipper = zipper.goForward())
-
-    I.Details.OpenAddMeasurement -> AddMeasurement(parent = this)
-    I.Details.OpenWateringDialog -> LogWatering(parent = this)
-    I.Details.OpenPruning -> Pruning(parent = this)
-    I.Details.OpenRepottingDialog -> Repotting(parent = this)
-
-    I.Details.StartEditingPlant -> EditPlant(
-        parent = this,
-        plantId = focus.id,
-        nameInput = TextFieldState(focus.name),
-        selectedSpeciesId = focus.speciesId,
-    )
-
-    is I.Details.StartEditingMeasurement -> HistoryModal.EditMeasurement(
-        parent = History(this),
-        measurementId = i.id,
-        weightInput = TextFieldState(i.currentWeightString),
-        originalTimestamp = i.timestamp,
-        timestamp = i.timestamp,
-    )
-
-    is I.Details.StartEditingWatering,
-    is I.Details.CopyMonth,
-    is I.Details.DeleteMeasurement,
-    is I.Details.DeleteWatering -> this
-
-    I.Details.OpenMeasurementHistory,
-    I.Details.OpenWateringHistory -> History(parent = this)
-}
 
 
 private fun S.Active.onLoaded(m: I.Loaded): S.Active = when (m) {

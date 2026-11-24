@@ -34,7 +34,7 @@ import com.zghonnyk.plateau.feature.main.ui.state.canGoBack
 @Composable
 fun BackAwareAppRoot(
     state: PlantState,
-    pendingDelete: PendingDelete?,
+    pendingDeletes: List<PendingDelete>,
     onIntent: (PlantIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -44,7 +44,7 @@ fun BackAwareAppRoot(
     }
     AppRoot(
         state = state,
-        pendingDelete = pendingDelete,
+        pendingDeletes = pendingDeletes,
         onIntent = onIntent,
         modifier = modifier,
     )
@@ -53,7 +53,7 @@ fun BackAwareAppRoot(
 @Composable
 fun AppRoot(
     state: PlantState,
-    pendingDelete: PendingDelete?,
+    pendingDeletes: List<PendingDelete>,
     onIntent: (PlantIntent) -> Unit,
     modifier: Modifier = Modifier,
 ) = when (state) {
@@ -71,7 +71,7 @@ fun AppRoot(
 
     is PlantState.Active -> ActiveHost(
         state = state,
-        pendingDelete = pendingDelete,
+        pendingDeletes = pendingDeletes,
         onIntent = onIntent,
     )
 }
@@ -79,7 +79,7 @@ fun AppRoot(
 @Composable
 private fun ActiveHost(
     state: PlantState.Active,
-    pendingDelete: PendingDelete?,
+    pendingDeletes: List<PendingDelete>,
     onIntent: (PlantIntent) -> Unit
 ) {
     val holder = rememberSaveableStateHolder()
@@ -87,7 +87,7 @@ private fun ActiveHost(
     holder.SaveableStateProvider(screen.key()) {
         when (screen) {
             is PlantState.Overview -> OverviewHost(
-                screen.plants, state as? PlantState.EditingName, pendingDelete, onIntent
+                screen.plants, state as? PlantState.EditingName, pendingDeletes, onIntent
             )
 
             is PlantState.Creating -> AddPlantScreen(
@@ -145,7 +145,7 @@ private fun ActiveHost(
 private fun OverviewHost(
     plants: List<PlantUi>,
     editing: PlantState.EditingName?,
-    pendingDelete: PendingDelete?,
+    pendingDeletes: List<PendingDelete>,
     onIntent: (PlantIntent) -> Unit,
 ) {
     PotsScreen(
@@ -161,8 +161,8 @@ private fun OverviewHost(
         onSelectSpecies = { id -> onIntent(PlantIntent.EditingName.SelectSpecies(id)) },
         onExport = { uri -> onIntent(PlantIntent.ExportCsv(uri)) },
         onImport = { uri -> onIntent(PlantIntent.ImportCsv(uri)) },
-        pendingDelete = pendingDelete,
-        onUndoDelete = { onIntent(PlantIntent.Overview.Deletion.Undo) },
+        pendingDeletes = pendingDeletes,
+        onUndoDelete = { id -> onIntent(PlantIntent.Overview.Deletion.Undo(id)) },
     )
 }
 

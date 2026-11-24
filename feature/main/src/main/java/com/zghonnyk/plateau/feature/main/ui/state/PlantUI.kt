@@ -53,9 +53,6 @@ data class PlantUi(
     val plantPhoto: String?
 )
 
-@Immutable
-data class PendingDelete(val plantId: PlantId, val progress: Float)
-
 interface HistoryUIModel {
     val date: String
     val usefulData: String

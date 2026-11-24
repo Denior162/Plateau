@@ -69,6 +69,9 @@ sealed interface Cmd {
     data class DeleteMeasurement(val id: MeasurementId) : Cmd
     data class DeleteWatering(val id: WateringEventId) : Cmd
     data class CopyToClipboard(val label: String, val text: String) : Cmd
+    data class StartDeleteTimer(val plantId: PlantId, val delayMs: Long) : Cmd
+    data class CancelDeleteTimer(val plantId: PlantId) : Cmd
+    data class DeletePlant(val plantId: PlantId) : Cmd
 }
 
 data class Next(val state: PlantState.Active, val cmd: Cmd) {
