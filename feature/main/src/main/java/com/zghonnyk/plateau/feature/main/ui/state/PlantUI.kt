@@ -95,6 +95,7 @@ data class RecordUiModel(
     val delta: String,
     val timestamp: Instant
 )
+
 data class Moisture(
     val percent: Double,
     val tare: Tare

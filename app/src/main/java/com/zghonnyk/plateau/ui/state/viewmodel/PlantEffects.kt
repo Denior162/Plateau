@@ -22,6 +22,7 @@ import com.zghonnyk.plateau.data.repository.insertNewMeasurement
 import com.zghonnyk.plateau.data.repository.insertNewPruning
 import com.zghonnyk.plateau.data.repository.insertNewRepotting
 import com.zghonnyk.plateau.data.repository.insertNewWatering
+import com.zghonnyk.plateau.data.repository.insertPhoto
 import com.zghonnyk.plateau.data.repository.observeActivePhaseMeasurements
 import com.zghonnyk.plateau.data.repository.observePlantOverview
 import com.zghonnyk.plateau.data.repository.removePlant
@@ -89,6 +90,9 @@ interface PlantEffects {
     fun startDeleteTimer(cmd: Cmd.StartDeleteTimer)
     fun cancelDeleteTimer(cmd: Cmd.CancelDeleteTimer)
     fun deletePlant(cmd: Cmd.DeletePlant)
+
+    fun copyPlantPhoto(cmd: Cmd.CopyPlantPhoto)
+    fun savePlantPhoto(cmd: Cmd.SavePlantPhoto)
 }
 
 class PlantEffectsImpl(
@@ -139,8 +143,6 @@ class PlantEffectsImpl(
                     )
                 }
 
-                // УТОЧНИТЬ: здесь события не передаются, расчет идет только по активному срезу.
-                // Если splitIntoPhases при пустых events не вернет одну фазу, нужно поправить.
                 val phases = splitIntoPhases(measurements, emptyList())
                 val analyzedPhases = phases.map { phase ->
                     AnalyzedPhase(phase, analyzeCached(phase.measurements))
@@ -175,8 +177,6 @@ class PlantEffectsImpl(
                     readyAt = readyAt(lastWeighedAt, forecast.recommendedInterval),
 
                     analyzedPhases.latestMoisture(pot),
-                    // УТОЧНИТЬ: полный timeline по всей истории в списке больше не строится.
-                    // Заглушка для компиляции; его нужно перенести в экран одного растения.
                     timeline(emptyList(), emptyList()),
                     plantPhoto = row.photo_path,
                 )
@@ -382,6 +382,30 @@ class PlantEffectsImpl(
     override fun deletePlant(cmd: Cmd.DeletePlant) {
         timers.remove(cmd.plantId)
         scope.launch(Dispatchers.IO) { removePlant(database, cmd.plantId.value) }
+    }
+
+    override fun copyPlantPhoto(cmd: Cmd.CopyPlantPhoto) {
+        scope.launch {
+            runCatching { deps.copyPhoto(cmd.uri) }
+                .onSuccess { path ->
+                    dispatch(PlantIntent.Overview.PhotoCopied(cmd.plantId, path))
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    emitEffect(ShowMessage(Resource(R.string.error_failed_to_add_photo)))
+                }
+        }
+    }
+
+    override fun savePlantPhoto(cmd: Cmd.SavePlantPhoto) {
+        scope.launch(Dispatchers.IO) {
+            insertPhoto(
+                db = database,
+                plantId = cmd.plantId.value,
+                timestamp = System.currentTimeMillis(),
+                filePath = cmd.relativePath,
+            )
+        }
     }
 
     private fun readyAt(lastWeighedAt: Instant?, interval: Duration?): Instant? =

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -16,6 +17,7 @@ fun PlateauTheme(
     darkTheme: Boolean,
     content: @Composable () -> Unit
 ) {
+    val motionScheme = MotionScheme.expressive()
     val context = LocalContext.current
     val colorScheme = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -28,6 +30,7 @@ fun PlateauTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        motionScheme = motionScheme,
         typography = Typography,
         content = content
     )

@@ -4,6 +4,8 @@ import androidx.compose.foundation.text.input.TextFieldState
 import com.zghonnyk.domain.MeasurementId
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
+import com.zghonnyk.plateau.feature.main.ui.state.Cmd.DeleteMeasurement
+import com.zghonnyk.plateau.feature.main.ui.state.Cmd.DeleteWatering
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.History
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryMeas
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryWaters
@@ -12,6 +14,7 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.AddMeasu
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditMeasurement
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditPlant
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.HistoryModal
+import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.HistoryModal.EditWatering
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.LogWatering
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Pruning
 import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Repotting
@@ -125,8 +128,8 @@ private fun editMeasurement(
 )
 
 private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
-    is I.Details.DeleteMeasurement -> Next(state, Cmd.DeleteMeasurement(i.id))
-    is I.Details.DeleteWatering -> Next(state, Cmd.DeleteWatering(i.id))
+    is I.Details.DeleteMeasurement -> Next(state, DeleteMeasurement(i.id))
+    is I.Details.DeleteWatering -> Next(state, DeleteWatering(i.id))
     is I.Details.CopyMonth -> copyMonth(state, i.month)
 
     I.Details.GoLeft -> onPlant(state) { it.copy(zipper = it.zipper.goBack()) }
@@ -160,7 +163,7 @@ private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
     )
 
     is I.Details.StartEditingWatering -> onHistory(state) {
-        HistoryModal.EditWatering(
+        EditWatering(
             parent = it,
             wateringId = i.wateringEventId,
             volumeInput = TextFieldState(i.currentMl),
@@ -169,6 +172,8 @@ private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
             isDateTimePickerOpen = false,
         )
     }
+
+    is I.Details.GoTo -> onPlant(state) { it.copy(zipper = it.zipper.goTo(i.index)) }
 }
 
 private fun copyMonth(state: S.Active, month: YearMonth): Next =
@@ -209,9 +214,11 @@ private fun updateOverview(state: S.Active, i: I.Overview): Next =
                     )
                 } ?: Next.just(s)
 
-            // пока обрабатывается в handleIntent, переедет на шаге 8
+            is I.Overview.AddPhoto -> Next(s, Cmd.CopyPlantPhoto(i.plantId, i.uri))
+            is I.Overview.PhotoCopied -> Next(s, Cmd.SavePlantPhoto(i.plantId, i.relativePath))
             is I.Overview.Deletion -> Next.just(s)
         }
+
     } ?: Next.just(state)
 
 private fun updateEditingMeasurement(state: S.Active, i: I.EditingMeasurement): Next =

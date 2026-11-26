@@ -72,6 +72,8 @@ sealed interface Cmd {
     data class StartDeleteTimer(val plantId: PlantId, val delayMs: Long) : Cmd
     data class CancelDeleteTimer(val plantId: PlantId) : Cmd
     data class DeletePlant(val plantId: PlantId) : Cmd
+    data class CopyPlantPhoto(val plantId: PlantId, val uri: Uri): Cmd
+    data class SavePlantPhoto(val plantId: PlantId, val relativePath: String): Cmd
 }
 
 data class Next(val state: PlantState.Active, val cmd: Cmd) {

@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
@@ -35,7 +37,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -43,13 +44,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -79,6 +86,9 @@ import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.RecordUiModel
 import com.zghonnyk.plateau.feature.main.ui.state.placeholderText
 import com.zghonnyk.ui.theme.spacing
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
@@ -92,9 +102,40 @@ fun PlantScreen(
     modal: PlantState.PlantModal?,
     onIntent: (PlantIntent) -> Unit,
 ) {
-    val plants = plant.zipper
-    val adding = modal as? PlantState.PlantModal.AddMeasurement
+    val zipper = plant.zipper
+    val pagerState = rememberPagerState(
+        initialPage = zipper.index,
+        pageCount = { zipper.list.size },
+    )
 
+    var isProgrammaticScroll by remember { mutableStateOf(false) }
+
+    LaunchedEffect(zipper.index) {
+        if (pagerState.currentPage != zipper.index) {
+            isProgrammaticScroll = true
+            try {
+                pagerState.animateScrollToPage(zipper.index)
+            } finally {
+                isProgrammaticScroll = false
+            }
+        }
+    }
+
+    val latestIndex by rememberUpdatedState(zipper.index)
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.isScrollInProgress }
+            .distinctUntilChanged()
+            .filter { !it }
+            .drop(1)
+            .collect {
+                val settled = pagerState.settledPage
+                if (!isProgrammaticScroll && settled != latestIndex) {
+                    onIntent(PlantIntent.Details.GoTo(settled))
+                }
+            }
+    }
+
+    val adding = modal as? PlantState.PlantModal.AddMeasurement
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     Box(modifier = Modifier.fillMaxSize()) {
@@ -104,14 +145,14 @@ fun PlantScreen(
                 .nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
                 PlantAppBar(
-                    title = plant.focus.name,
                     scrollBehavior = scrollBehavior,
-                    onClose = { onIntent(PlantIntent.Back) })
+                    onClose = { onIntent(PlantIntent.Back) },
+                )
             },
             bottomBar = {
                 BottomButtonGroup(
-                    isEmptyLefts = plants.isEmptyLefts,
-                    isEmptyRights = plants.isEmptyRights,
+                    isEmptyLefts = zipper.isEmptyLefts,
+                    isEmptyRights = zipper.isEmptyRights,
                     isInputActive = adding != null,
                     weightInput = adding?.weightInput ?: remember { TextFieldState() },
                     customTimestamp = adding?.customTimestamp,
@@ -129,26 +170,31 @@ fun PlantScreen(
                     onRePotDialog = { onIntent(PlantIntent.Details.OpenRepottingDialog) },
                     onSetTimestamp = { instant ->
                         onIntent(
-                            PlantIntent.AddingMeasurement.SetMeasurementTimestamp(
-                                instant
-                            )
+                            PlantIntent.AddingMeasurement.SetMeasurementTimestamp(instant)
                         )
-                    }
+                    },
+                )
+            },
+        ) { innerPadding ->
+            HorizontalPager(
+                state = pagerState,
+                key = { zipper.list[it].id.value },
+                beyondViewportPageCount = 1,
+                userScrollEnabled = modal == null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) { page ->
+                PlantScreenContent(
+                    Modifier.padding(horizontal = spacing.large),
+                    plant = zipper.list[page],
+                    onIntent = onIntent,
+                    onOpenMeasurementsHistory = { onIntent(PlantIntent.Details.OpenMeasurementHistory) },
+                    onOpenWateringHistory = { onIntent(PlantIntent.Details.OpenWateringHistory) },
+                    onRemove = { id -> onIntent(PlantIntent.Details.DeleteMeasurement(id)) },
+                    onCopy = { ym -> onIntent(PlantIntent.Details.CopyMonth(ym)) },
                 )
             }
-        ) { innerPadding ->
-            PlantScreenContent(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp)
-                    .fillMaxSize(),
-                plant = plants.focus,
-                onIntent = onIntent,
-                onOpenMeasurementsHistory = { onIntent(PlantIntent.Details.OpenMeasurementHistory) },
-                onOpenWateringHistory = { onIntent(PlantIntent.Details.OpenWateringHistory) },
-                onRemove = { id -> onIntent(PlantIntent.Details.DeleteMeasurement(id)) },
-                onCopy = { ym -> onIntent(PlantIntent.Details.CopyMonth(ym)) }
-            )
         }
         DetailsDialogs(modal = modal, onIntent = onIntent)
     }
@@ -648,7 +694,7 @@ fun BottomButtonGroup(
 
 @Composable
 private fun PlantScreenContent(
-    modifier: Modifier = Modifier,
+    modifier: Modifier,
     plant: PlantUi,
     onIntent: (PlantIntent) -> Unit,
     onOpenMeasurementsHistory: () -> Unit,
@@ -706,6 +752,8 @@ private fun PlantScreenContent(
             if (plant.dryingForecast != null) {
                 item(key = "analytics_card") {
                     Column {
+                        PlantTitle(plant.name)
+                        Spacer(modifier.height(spacing.small))
                         DryingChart(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -715,10 +763,12 @@ private fun PlantScreenContent(
                             expFit = (plant.dryingForecast as? DryingForecast.Active)?.expFit
 
                         )
+                        Spacer(modifier.height(spacing.small))
                         UsefulAnalyticsCard(
                             forecast = plant.dryingForecast,
                             moisture = plant.moisture?.percentInt()
                         )
+                        Spacer(modifier.height(spacing.small))
                         Row {
                             Button(
                                 onClick = onOpenMeasurementsHistory,
@@ -903,9 +953,9 @@ fun RecordCard(record: RecordUiModel, onEdit: () -> Unit, onRemove: () -> Unit) 
 }
 
 @Composable
-fun PlantAppBar(title: String, scrollBehavior: TopAppBarScrollBehavior, onClose: () -> Unit) =
-    LargeTopAppBar(
-        { PlantTitle(title) },
+fun PlantAppBar(scrollBehavior: TopAppBarScrollBehavior, onClose: () -> Unit) =
+    TopAppBar(
+        { },
         navigationIcon = { GoUpButton { onClose() } },
         scrollBehavior = scrollBehavior
     )

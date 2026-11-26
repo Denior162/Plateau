@@ -80,11 +80,11 @@ fun AppRoot(
 private fun ActiveHost(
     state: PlantState.Active,
     pendingDeletes: List<PendingDelete>,
-    onIntent: (PlantIntent) -> Unit
+    onIntent: (PlantIntent) -> Unit,
 ) {
     val holder = rememberSaveableStateHolder()
     val screen = state.screen()
-    holder.SaveableStateProvider(screen.key()) {
+    val content: @Composable () -> Unit = {
         when (screen) {
             is PlantState.Overview -> OverviewHost(
                 screen.plants, state as? PlantState.EditingName, pendingDeletes, onIntent
@@ -127,17 +127,25 @@ private fun ActiveHost(
                     )
                 },
                 onDelete = { item -> onIntent(DeleteWatering(item.id)) })
-
-            is PlantState.Details.Plant -> PlantScreen(
-                plant = screen, modal = state as? PlantState.PlantModal, onIntent = onIntent
-            )
-
             is PlantState.Details.History -> HistoryScreen(
                 plant = screen.plant,
                 modal = state as? PlantState.PlantModal.HistoryModal,
                 onIntent = onIntent,
             )
+
+            is PlantState.Details.Plant -> PlantScreen(
+                plant = screen,
+                modal = state as? PlantState.PlantModal,
+                onIntent = onIntent,
+            )
         }
+    }
+
+    val key = screen.saveableKey()
+    if (key != null) {
+        holder.SaveableStateProvider(key, content)
+    } else {
+        content()
     }
 }
 
@@ -163,7 +171,8 @@ private fun OverviewHost(
         onImport = { uri -> onIntent(PlantIntent.ImportCsv(uri)) },
         pendingDeletes = pendingDeletes,
         onUndoDelete = { id -> onIntent(PlantIntent.Overview.Deletion.Undo(id)) },
-    )
+        onAddPhoto = { id, uri -> onIntent(PlantIntent.Overview.AddPhoto(id, uri)) },
+        )
 }
 
 private fun PlantState.Active.screen(): PlantState.Screen = when (this) {
@@ -172,7 +181,17 @@ private fun PlantState.Active.screen(): PlantState.Screen = when (this) {
 }
 
 private fun PlantState.Screen.key(): Any = when (this) {
-    is PlantState.Details.Plant -> "plant:${focus.id.value}"
+    is PlantState.Details.Plant -> "plant"
+    is PlantState.Details.HistoryMeas -> "histM:${plant.id.value}"
+    is PlantState.Details.HistoryWaters -> "histW:${plant.id.value}"
+    is PlantState.Overview -> "overview"
+    is PlantState.Creating -> "creating"
+    is PlantState.Species -> "species"
+    is PlantState.Details.History -> "hist:${plant.id.value}"
+}
+
+private fun PlantState.Screen.saveableKey(): Any? = when (this) {
+    is PlantState.Details.Plant -> null
     is PlantState.Details.HistoryMeas -> "histM:${plant.id.value}"
     is PlantState.Details.HistoryWaters -> "histW:${plant.id.value}"
     is PlantState.Overview -> "overview"

@@ -100,6 +100,7 @@ data class ExpFit(
 
 fun ExpFit.weightAt(day: Double) = plateauWeight + amplitude * exp(-k * day)
 fun ExpFit.rateAt(day: Double) = k * amplitude * exp(-k * day)
+
 private fun fitForK(
     k: Double,
     days: List<Double>,

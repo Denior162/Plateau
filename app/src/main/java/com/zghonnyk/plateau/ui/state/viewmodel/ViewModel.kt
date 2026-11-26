@@ -148,6 +148,9 @@ class PlantsViewModel(
             is Cmd.StartDeleteTimer -> effects.startDeleteTimer(cmd)
             is Cmd.CancelDeleteTimer -> effects.cancelDeleteTimer(cmd)
             is Cmd.DeletePlant -> effects.deletePlant(cmd)
+
+            is Cmd.CopyPlantPhoto -> effects.copyPlantPhoto(cmd)
+            is Cmd.SavePlantPhoto -> effects.savePlantPhoto(cmd)
         }
     }
 

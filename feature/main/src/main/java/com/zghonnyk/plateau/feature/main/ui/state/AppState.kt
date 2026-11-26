@@ -55,7 +55,7 @@ sealed interface PlantState {
 
         @Immutable
         data class Plant(val zipper: VectorZipper<PlantUi>) : Details {
-            val focus: PlantUi get() = zipper.focus // ← единственное место, зависящее от API VectorZipper
+            val focus: PlantUi get() = zipper.focus
             override val parent: Overview get() = Overview(zipper.list)
         }
 
@@ -80,8 +80,6 @@ sealed interface PlantState {
             val plant: PlantUi get() = parent.focus
         }
     }
-
-    // ───────────── модалки над Details.Plant ─────────────
 
     sealed interface PlantModal : Modal {
         override val parent: Details.Plant
@@ -188,7 +186,8 @@ sealed interface PlantIntent {
         data class SelectPlant(val plantId: PlantId) : Overview
         data object OpenAddPlant : Overview
         data class StartEditingPlantName(val plantId: PlantId) : Overview
-
+        data class AddPhoto(val plantId: PlantId, val uri: Uri) : Overview
+        data class PhotoCopied(val plantId: PlantId, val relativePath: String) : Overview
         sealed interface Deletion : Overview {
             data class Request(val plantId: PlantId) : Deletion
             data class Undo(val plantId: PlantId) : Deletion
@@ -212,6 +211,7 @@ sealed interface PlantIntent {
     }
 
     sealed interface Details : PlantIntent {
+        data class GoTo(val index: Int) : Details
         data object GoLeft : Details
         data object GoRight : Details
         data class CopyMonth(val month: YearMonth) : Details

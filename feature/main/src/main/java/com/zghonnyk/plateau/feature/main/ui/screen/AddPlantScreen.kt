@@ -111,7 +111,8 @@ private fun PlantPhotoPickerSection(
                 pickMedia.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
-            })
+            }
+        )
 
 
         val photoFile = rememberPhotoFile(addedPicture)
