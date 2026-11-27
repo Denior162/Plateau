@@ -65,11 +65,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.coil.compose)
     implementation(project(":feature:main"))
     implementation(project(":vector-zipper"))
-    implementation(project(":core:ui"))
     implementation(project(":domain"))
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

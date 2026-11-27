@@ -1,10 +1,13 @@
-package com.zghonnyk.plateau.feature.main.ui.state
+package com.zghonnyk.domain.state
 
-import android.net.Uri
-import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.runtime.Immutable
+import com.zghonnyk.domain.AddPlantForm
+import com.zghonnyk.domain.Measurement
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.PhotoSource
+import com.zghonnyk.domain.PlantFacts
 import com.zghonnyk.domain.PlantId
+import com.zghonnyk.domain.SpeciesSelection
+import com.zghonnyk.domain.Watering
 import com.zghonnyk.domain.WateringEventId
 import com.zghonnyk.vector_zipper.VectorZipper
 import java.time.Instant
@@ -23,29 +26,27 @@ sealed interface PlantState {
     sealed interface Modal : Active {
         override val parent: Screen
     }
-    @Immutable
-    data class Overview(val plants: List<PlantUi>) : Screen {
+    data class Overview(val plants: List<PlantFacts>) : Screen {
         override val parent: Nothing? get() = null
     }
 
-    @Immutable
     data class EditingName(
         override val parent: Overview,
         val plantId: PlantId,
-        val nameInput: TextFieldState,
+        val nameInput: String,
         val selectedSpeciesId: Long?,
         val isDropdownExpanded: Boolean = false,
         val speciesList: List<DomainSpecies>,
     ) : Modal
 
-    @Immutable
+
     data class Creating(
         override val parent: Overview,
         val form: AddPlantForm,
         val speciesList: List<DomainSpecies>,
     ) : Screen
 
-    @Immutable
+
     data class Species(
         override val parent: Overview,
         val species: List<DomainSpecies>,
@@ -53,32 +54,24 @@ sealed interface PlantState {
 
     sealed interface Details : Screen {
 
-        @Immutable
-        data class Plant(val zipper: VectorZipper<PlantUi>) : Details {
-            val focus: PlantUi get() = zipper.focus
+        data class Plant(val zipper: VectorZipper<PlantFacts>) : Details {
+            val focus: PlantFacts get() = zipper.focus
             override val parent: Overview get() = Overview(zipper.list)
         }
 
-        @Immutable
         data class History(override val parent: Plant) : Details {
-            val plant: PlantUi get() = parent.focus
+            val plant: PlantFacts get() = parent.focus
         }
 
-        @Immutable
         data class HistoryMeas(
             override val parent: Plant,
-            val elements: List<MeasurementUiModel>,
-        ) : Details {
-            val plant: PlantUi get() = parent.focus
-        }
+            val elements: List<Measurement>,
+        ) : Details
 
-        @Immutable
         data class HistoryWaters(
             override val parent: Plant,
-            val elements: List<WateringUiModel>,
-        ) : Details {
-            val plant: PlantUi get() = parent.focus
-        }
+            val elements: List<Watering>,
+        ) : Details
     }
 
     sealed interface PlantModal : Modal {
@@ -90,7 +83,7 @@ sealed interface PlantState {
             data class EditMeasurement(
                 override val parent: Details.History,
                 val measurementId: MeasurementId,
-                val weightInput: TextFieldState,
+                val weightInput: String,
                 val originalTimestamp: Instant,
                 val timestamp: Instant,
                 val isDateTimePickerOpen: Boolean = false
@@ -99,85 +92,68 @@ sealed interface PlantState {
             data class EditWatering(
                 override val parent: Details.History,
                 val wateringId: WateringEventId,
-                val volumeInput: TextFieldState,
+                val volumeInput: String,
                 val originalTimestamp: Instant,
                 val timestamp: Instant,
-                val isDateTimePickerOpen: Boolean = false
+                val isDateTimePickerOpen: Boolean
             ) : HistoryModal
         }
 
-        @Immutable
+
         data class AddMeasurement(
             override val parent: Details.Plant,
-            val weightInput: TextFieldState = TextFieldState(""),
-            val customTimestamp: Instant? = null,
-            val isDateTimePickerOpen: Boolean = false,
+            val customTimestamp: Instant?,
+            val isDateTimePickerOpen: Boolean,
         ) : PlantModal
 
-        @Immutable
         data class LogWatering(
             override val parent: Details.Plant,
-            val volumeInput: TextFieldState = TextFieldState(""),
-            val weightInput: TextFieldState = TextFieldState(""),
-            val customTimestamp: Instant? = null,
-            val isDateTimePickerOpen: Boolean = false,
+            val customTimestamp: Instant?,
+            val isDateTimePickerOpen: Boolean,
         ) : PlantModal
 
-        @Immutable
         data class Pruning(
             override val parent: Details.Plant,
-            val weightInput: TextFieldState = TextFieldState(""),
-            val customTimestamp: Instant? = null,
-            val isDateTimePickerOpen: Boolean = false,
+            val customTimestamp: Instant?,
+            val isDateTimePickerOpen: Boolean,
         ) : PlantModal
 
-        @Immutable
         data class Repotting(
             override val parent: Details.Plant,
-            val weightInput: TextFieldState = TextFieldState(""),
-            val customTimestamp: Instant? = null,
-            val isDateTimePickerOpen: Boolean = false,
+            val customTimestamp: Instant?,
+            val isDateTimePickerOpen: Boolean,
         ) : PlantModal
-
         data class EditMeasurement(
             override val parent: Details.Plant,
             val measurementId: MeasurementId,
-            val weightInput: TextFieldState,
+            val weightInput: String,
             val timestamp: Instant,
-            val isDateTimePickerOpen: Boolean = false,
+            val isDateTimePickerOpen: Boolean,
         ) : PlantModal
 
         data class EditPlant(
             override val parent: Details.Plant,
             val plantId: PlantId,
-            val nameInput: TextFieldState,
+            val nameInput: String,
             val selectedSpeciesId: Long?,
-            val isDropdownExpanded: Boolean = false,
+            val isDropdownExpanded: Boolean,
             val speciesList: List<DomainSpecies>,
         ) : PlantModal
     }
 }
 
-/**
- * Интенты сгруппированы по тому состоянию, в котором они имеют смысл.
- * Навигация назад — один интент [Back]. Результаты асинхронной загрузки — [Loaded]:
- * они применяются к ТЕКУЩЕМУ состоянию, а не к снимку, захваченному в момент запроса.
- */
 sealed interface PlantIntent {
     data object Refresh : PlantIntent
     data object Back : PlantIntent
-    data class ExportCsv(val uri: Uri) : PlantIntent
-    data class ImportCsv(val uri: Uri) : PlantIntent
+    data class ExportCsv(val uri: PhotoSource) : PlantIntent
+    data class ImportCsv(val uri: PhotoSource) : PlantIntent
 
     sealed interface Loaded : PlantIntent {
         data class Species(val species: List<DomainSpecies>) : Loaded
         data class EditingSpecies(val species: List<DomainSpecies>) : Loaded
-        data class MeasurementHistory(
-            val plantId: PlantId, val elements: List<MeasurementUiModel>
-        ) : Loaded
+        data class MeasurementHistory(val plantId: PlantId, val elements: List<Measurement>) : Loaded
 
-        data class WateringHistory(val plantId: PlantId, val elements: List<WateringUiModel>) :
-            Loaded
+        data class WateringHistory(val plantId: PlantId, val elements: List<Watering>) : Loaded
 
         data class CreatingSpecies(val species: List<DomainSpecies>) : Loaded
     }
@@ -186,7 +162,7 @@ sealed interface PlantIntent {
         data class SelectPlant(val plantId: PlantId) : Overview
         data object OpenAddPlant : Overview
         data class StartEditingPlantName(val plantId: PlantId) : Overview
-        data class AddPhoto(val plantId: PlantId, val uri: Uri) : Overview
+        data class AddPhoto(val plantId: PlantId, val uri: PhotoSource) : Overview
         data class PhotoCopied(val plantId: PlantId, val relativePath: String) : Overview
         sealed interface Deletion : Overview {
             data class Request(val plantId: PlantId) : Deletion
@@ -196,17 +172,17 @@ sealed interface PlantIntent {
     }
 
     sealed interface EditingName : PlantIntent {
-        data object Save : EditingName
+        data class Save(val name: String) : EditingName
         data class ToggleDropdown(val expanded: Boolean) : EditingName
         data class SelectSpecies(val speciesId: Long?) : EditingName
     }
 
     sealed interface Creating : PlantIntent {
-        data object Save : Creating
+        data class Save(val name: String) : Creating
         data class ToggleDropdown(val expanded: Boolean) : Creating
         data class SelectSpecies(val selection: SpeciesSelection) : Creating
         data object UnknownSpecies : Creating
-        data class AddPhoto(val uri: Uri) : Creating
+        data class AddPhoto(val uri: PhotoSource) : Creating
         data class AddPhotoCopied(val relativePath: String) : Creating
     }
 
@@ -243,27 +219,27 @@ sealed interface PlantIntent {
     }
 
     sealed interface AddingMeasurement : PlantIntent {
-        data object Save : AddingMeasurement
+        data class Save(val weight: String) : AddingMeasurement
         data object OpenDateTimePicker : AddingMeasurement
         data object CloseDateTimePicker : AddingMeasurement
         data class SetMeasurementTimestamp(val timestamp: Instant?) : AddingMeasurement
     }
 
     sealed interface LoggingWatering : PlantIntent {
-        data object Save : LoggingWatering
+        data class Save(val volume: String, val weight: String) : LoggingWatering
         data object OpenDateTimePicker : LoggingWatering
         data object CloseDateTimePicker : LoggingWatering
         data class SetWateringTimestamp(val timestamp: Instant?) : LoggingWatering
     }
 
     sealed interface EditingPlant : PlantIntent {
-        data object Save : EditingPlant
+        data class Save(val name: String) : EditingPlant
         data class ToggleDropdown(val expanded: Boolean) : EditingPlant
         data class SelectSpecies(val speciesId: Long?) : EditingPlant
     }
 
     sealed interface EditingMeasurement : PlantIntent {
-        data object Save : EditingMeasurement
+        data class Save(val weight: String) : EditingMeasurement
         data object OpenDateTimePicker : EditingMeasurement
         data object CloseDateTimePicker : EditingMeasurement
         data class SetTimestamp(val timestamp: Instant) : EditingMeasurement
@@ -271,7 +247,7 @@ sealed interface PlantIntent {
     }
 
     sealed interface EditingWatering : PlantIntent {
-        data object Save : EditingWatering
+        data class Save(val volume: String) : EditingWatering
         data object OpenDateTimePicker : EditingWatering
         data object CloseDateTimePicker : EditingWatering
         data class SetTimestamp(val timestamp: Instant) : EditingWatering
@@ -279,14 +255,14 @@ sealed interface PlantIntent {
     }
 
     sealed interface Pruning : PlantIntent {
-        data object Save : Pruning
+        data class Save(val removedWeight: String) : Pruning
         data object OpenDateTimePicker : Pruning
         data object CloseDateTimePicker : Pruning
         data class SetPruningTimestamp(val timestamp: Instant?) : Pruning
     }
 
     sealed interface Repotting : PlantIntent {
-        data object Save : Repotting
+        data class Save(val weightAfter: String) : Repotting
         data object OpenDateTimePicker : Repotting
         data object CloseDateTimePicker : Repotting
         data class SetRepottingTimestamp(val timestamp: Instant?) : Repotting

@@ -1,6 +1,5 @@
 package com.zghonnyk.plateau.feature.main.ui.state
 
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Immutable
 import com.zghonnyk.domain.DryingForecast
 import com.zghonnyk.domain.Measurement
@@ -8,30 +7,12 @@ import com.zghonnyk.domain.MeasurementId
 import com.zghonnyk.domain.MoistureReading
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.domain.Prediction
-import com.zghonnyk.domain.Species
-import com.zghonnyk.domain.Tare
 import com.zghonnyk.domain.TimelineEntry
 import com.zghonnyk.domain.WateringEventId
 import com.zghonnyk.plateau.feature.main.ui.components.ChartPoint
 import java.time.Instant
 import java.time.YearMonth
 
-data class PlantFacts(
-    val id: PlantId,
-    val name: String,
-    val latinName: String,
-    val records: List<MonthGroupUiModel>,
-    val dryingForecast: DryingForecast?,
-    val lastWeighedAt: Instant?,
-    val speciesId: Long?,
-    val hasWatering: Boolean,
-    val activeMeasurementPoints: List<ChartPoint>,
-    val activeMeasurements: List<Measurement>,
-    val readyAt: Instant?,
-    val moisture: MoistureReading?,
-    val timeline: List<TimelineEntry>,
-    val plantPhoto: String?
-)
 
 data class PlantUi(
     val id: PlantId,
@@ -96,32 +77,3 @@ data class RecordUiModel(
     val timestamp: Instant
 )
 
-data class Moisture(
-    val percent: Double,
-    val tare: Tare
-)
-data class AddPlantForm(
-    val searchQuery: TextFieldState,
-    val customName: TextFieldState,
-    val weightInput: TextFieldState,
-    val isDropdownExpanded: Boolean,
-    val speciesSelection: SpeciesSelection,
-    val photoPath: String?,
-) {
-    companion object {
-        fun empty() = AddPlantForm(
-            searchQuery = TextFieldState(""),
-            customName = TextFieldState(""),
-            weightInput = TextFieldState(""),
-            isDropdownExpanded = false,
-            speciesSelection = SpeciesSelection.Unselected,
-            photoPath = null,
-        )
-    }
-}
-
-sealed interface SpeciesSelection {
-    data object Unselected : SpeciesSelection
-    data object Unknown : SpeciesSelection
-    data class Selected(val species: Species) : SpeciesSelection
-}

@@ -1,14 +1,15 @@
-package com.zghonnyk.plateau.feature.main.ui.state
+package com.zghonnyk.domain.state
 
-import android.net.Uri
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.PhotoSource
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.domain.WateringEventId
+import java.time.YearMonth
 
 sealed interface Cmd {
     data object None : Cmd
-    data class ExportCsv(val uri: Uri) : Cmd
-    data class ImportCsv(val uri: Uri) : Cmd
+    data class ExportCsv(val uri: PhotoSource) : Cmd
+    data class ImportCsv(val uri: PhotoSource) : Cmd
 
     data class SavePruning(
         val plantId: PlantId,
@@ -42,7 +43,7 @@ sealed interface Cmd {
         val createdAtMs: Long,
         val photoPath: String?,
     ) : Cmd
-    data class CopyPhoto(val uri: Uri) : Cmd
+    data class CopyPhoto(val uri: PhotoSource) : Cmd
     data class DeletePhoto(val path: String) : Cmd
     data class UpdatePlant(
         val plantId: PlantId,
@@ -68,11 +69,11 @@ sealed interface Cmd {
     ) : Cmd
     data class DeleteMeasurement(val id: MeasurementId) : Cmd
     data class DeleteWatering(val id: WateringEventId) : Cmd
-    data class CopyToClipboard(val label: String, val text: String) : Cmd
+    data class CopyMonth(val plantId: PlantId, val month: YearMonth) : Cmd
     data class StartDeleteTimer(val plantId: PlantId, val delayMs: Long) : Cmd
     data class CancelDeleteTimer(val plantId: PlantId) : Cmd
     data class DeletePlant(val plantId: PlantId) : Cmd
-    data class CopyPlantPhoto(val plantId: PlantId, val uri: Uri): Cmd
+    data class CopyPlantPhoto(val plantId: PlantId, val uri: PhotoSource): Cmd
     data class SavePlantPhoto(val plantId: PlantId, val relativePath: String): Cmd
 }
 

@@ -99,7 +99,7 @@ fun DryingChart(
         if (validFit != null) {
             val plateauY = mapY(
                 validFit.plateauWeight, minWeight, maxWeight, usableHeight, animProgress,
-                height = height, padding = padding
+                height = height
             )
             drawLine(
                 color = tertiaryColor.copy(alpha = PLATEAU_LINE_ALPHA),
@@ -119,8 +119,8 @@ fun DryingChart(
                 val timeMs = t0Ms + (day * MILLIS_PER_DAY).toLong()
                 val weight = validFit.weightAt(day)
 
-                val x = mapX(timeMs, minTime, maxTime, usableWidth, padding)
-                val y = mapY(weight, minWeight, maxWeight, usableHeight, animProgress, height, padding)
+                val x = mapX(timeMs, minTime, maxTime, usableWidth)
+                val y = mapY(weight, minWeight, maxWeight, usableHeight, animProgress, height)
 
                 if (i == 0) {
                     curvePath.moveTo(x, y)
@@ -131,16 +131,16 @@ fun DryingChart(
                     fillPath.lineTo(x, y)
                 }
             }
-            val lastX = mapX(t0Ms + (totalDays * MILLIS_PER_DAY).toLong(), minTime, maxTime, usableWidth, padding)
+            val lastX = mapX(t0Ms + (totalDays * MILLIS_PER_DAY).toLong(), minTime, maxTime, usableWidth)
             fillPath.lineTo(lastX, height - padding)
             fillPath.close()
         } else {
 
             points.forEachIndexed { index, point ->
-                val x = mapX(point.timestamp, minTime, maxTime, usableWidth, padding = padding)
+                val x = mapX(point.timestamp, minTime, maxTime, usableWidth)
                 val y = mapY(
                     point.grams, minWeight, maxWeight, usableHeight, animProgress,
-                    height = height, padding = padding
+                    height = height
                 )
 
                 if (index == 0) {
@@ -174,8 +174,8 @@ fun DryingChart(
         )
 
         points.forEach { point ->
-            val x = mapX(point.timestamp, minTime, maxTime, usableWidth, padding)
-            val y = mapY(point.grams, minWeight, maxWeight, usableHeight, animProgress, height, padding)
+            val x = mapX(point.timestamp, minTime, maxTime, usableWidth)
+            val y = mapY(point.grams, minWeight, maxWeight, usableHeight, animProgress, height)
 
             drawCircle(color = surfaceVariantColor, radius = outerRadius, center = Offset(x, y))
             drawCircle(color = primaryColor, radius = innerRadius, center = Offset(x, y))
@@ -184,10 +184,10 @@ fun DryingChart(
 }
 
 private fun mapX(
-    time: Long, minTime: Long, maxTime: Long, usableWidth: Float, padding: Float
+    time: Long, minTime: Long, maxTime: Long, usableWidth: Float
 ): Float {
     val fraction = (time - minTime).toFloat() / (maxTime - minTime).coerceAtLeast(1L).toFloat()
-    return padding + (fraction * usableWidth)
+    return CHART_PADDING + (fraction * usableWidth)
 }
 
 private fun mapY(
@@ -197,9 +197,8 @@ private fun mapY(
     usableHeight: Float,
     animProgress: Float,
     height: Float,
-    padding: Float
 ): Float {
     val fraction =
         (weight - minWeight).toFloat() / (maxWeight - minWeight).coerceAtLeast(1.0).toFloat()
-    return height - padding - (fraction * usableHeight * animProgress)
+    return height - CHART_PADDING - (fraction * usableHeight * animProgress)
 }

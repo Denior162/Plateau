@@ -4,7 +4,6 @@ import java.time.Instant
 import java.time.LocalDate
 
 @JvmInline value class SpeciesId(val value: Long)
-@JvmInline value class FertilizerId(val value: Long)
 @JvmInline value class PotId(val value: Long)
 @JvmInline value class SubstrateId(val value: Long)
 @JvmInline value class LocationId(val value: Long)
@@ -14,10 +13,11 @@ import java.time.LocalDate
 @JvmInline value class WateringEventId(val value: Long)
 @JvmInline value class PruningEventId(val value: Long)
 @JvmInline value class CalibrationId(val value: Long)
-@JvmInline value class RepottingEventId(val value: Long)
-@JvmInline value class FertilizingEventId(val value: Long)
 @JvmInline
-value class SortedMeasurements(val value: List<Measurement>)
+value class RepottingEventId(val value: Long)
+
+@JvmInline
+value class PhotoSource(val value: String)
 @JvmInline
 value class ActiveDryingPhase(val measurements: List<Measurement>)
 
@@ -157,3 +157,39 @@ data class MonthlyStatItem(
     val avgWeightGrams: Double?,
     val maxWeightRecorded: Double?
 )
+
+data class PlantFacts(
+    val id: PlantId,
+    val name: String,
+    val latinName: String,
+    val dryingForecast: DryingForecast?,
+    val lastWeighedAt: Instant?,
+    val speciesId: Long?,
+    val hasWatering: Boolean,
+    val activeMeasurements: List<Measurement>,
+    val readyAt: Instant?,
+    val moisture: MoistureReading?,
+    val timeline: List<TimelineEntry>,
+    val plantPhoto: String?,
+)
+
+
+data class AddPlantForm(
+    val isDropdownExpanded: Boolean,
+    val speciesSelection: SpeciesSelection,
+    val photoPath: String?,
+) {
+    companion object {
+        fun empty() = AddPlantForm(
+            isDropdownExpanded = false,
+            speciesSelection = SpeciesSelection.Unselected,
+            photoPath = null,
+        )
+    }
+}
+
+sealed interface SpeciesSelection {
+    data object Unselected : SpeciesSelection
+    data object Unknown : SpeciesSelection
+    data class Selected(val species: Species) : SpeciesSelection
+}

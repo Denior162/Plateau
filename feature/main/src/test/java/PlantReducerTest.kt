@@ -5,6 +5,16 @@ import com.zghonnyk.domain.MeasurementId
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.domain.Species
 import com.zghonnyk.domain.SpeciesId
+import com.zghonnyk.domain.state.Cmd
+import com.zghonnyk.domain.state.DELETE_DELAY_MS
+import com.zghonnyk.domain.state.PendingDelete
+import com.zghonnyk.domain.state.PlantIntent
+import com.zghonnyk.domain.state.PlantState
+import com.zghonnyk.domain.state.applyPlants
+import com.zghonnyk.domain.state.canGoBack
+import com.zghonnyk.domain.state.toPositiveDoubleOrNull
+import com.zghonnyk.domain.state.update
+import com.zghonnyk.domain.state.updateDeletions
 import com.zghonnyk.vector_zipper.VectorZipper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -138,7 +148,11 @@ class PlantReducerTest {
         val form = AddPlantForm.empty().copy(photoPath = "old/path.jpg")
         val creating = PlantState.Creating(parent = overview, form = form, speciesList = emptyList())
 
-        val (nextState, cmd) = update(creating, PlantIntent.Creating.AddPhotoCopied("new/path.jpg"), now)
+        val (nextState, cmd) = update(
+            creating,
+            PlantIntent.Creating.AddPhotoCopied("new/path.jpg"),
+            now
+        )
 
         assertEquals("new/path.jpg", (nextState as PlantState.Creating).form.photoPath)
         assertTrue(cmd is Cmd.DeletePhoto)
@@ -168,7 +182,11 @@ class PlantReducerTest {
         val (stateAfterRight, _) = update(detailsState, PlantIntent.Details.GoRight, now)
         assertEquals(PlantId(2L), (stateAfterRight as PlantState.Details.Plant).focus.id)
 
-        val (stateAfterLeft, _) = update(stateAfterRight as PlantState.Active, PlantIntent.Details.GoLeft, now)
+        val (stateAfterLeft, _) = update(
+            stateAfterRight as PlantState.Active,
+            PlantIntent.Details.GoLeft,
+            now
+        )
         assertEquals(PlantId(1L), (stateAfterLeft as PlantState.Details.Plant).focus.id)
     }
 

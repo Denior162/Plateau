@@ -1,18 +1,24 @@
 package com.zghonnyk.plateau.ui.state.viewmodel
 
+import androidx.core.net.toUri
 import com.zghonnyk.domain.ActiveDryingPhase
 import com.zghonnyk.domain.AnalyzedPhase
 import com.zghonnyk.domain.DryingConfig
 import com.zghonnyk.domain.DryingForecast
 import com.zghonnyk.domain.Measurement
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.PlantFacts
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.domain.Tare
 import com.zghonnyk.domain.analyzeDrying
 import com.zghonnyk.domain.latestMoisture
 import com.zghonnyk.domain.splitIntoPhases
+import com.zghonnyk.domain.state.Cmd
+import com.zghonnyk.domain.state.PlantIntent
+import com.zghonnyk.domain.state.PlantIntent.Creating.AddPhotoCopied
+import com.zghonnyk.domain.state.PlantIntent.Loaded.CreatingSpecies
+import com.zghonnyk.domain.state.PlantIntent.Loaded.EditingSpecies
 import com.zghonnyk.domain.timeline
-import com.zghonnyk.domain.withRates
 import com.zghonnyk.plateau.data.db.PlateauDatabase
 import com.zghonnyk.plateau.data.repository.PotChoice.New
 import com.zghonnyk.plateau.data.repository.deleteMeasurement
@@ -34,14 +40,6 @@ import com.zghonnyk.plateau.domain.importBackup
 import com.zghonnyk.plateau.domain.parseBackup
 import com.zghonnyk.plateau.domain.toCsv
 import com.zghonnyk.plateau.feature.main.R
-import com.zghonnyk.plateau.feature.main.ui.components.ChartPoint
-import com.zghonnyk.plateau.feature.main.ui.extentions.toMonthGroupUiModels
-import com.zghonnyk.plateau.feature.main.ui.state.Cmd
-import com.zghonnyk.plateau.feature.main.ui.state.PlantFacts
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Creating.AddPhotoCopied
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Loaded.CreatingSpecies
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Loaded.EditingSpecies
 import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.PlantEffect.CopyToClipboard
 import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.PlantEffect.ShowMessage
 import com.zghonnyk.plateau.ui.state.viewmodel.PlantsViewModel.UiText.Resource
@@ -55,7 +53,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
-import java.time.ZoneId
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -86,7 +83,7 @@ interface PlantEffects {
     fun updateWatering(cmd: Cmd.UpdateWatering)
     fun deleteMeasurement(cmd: Cmd.DeleteMeasurement)
     fun deleteWatering(cmd: Cmd.DeleteWatering)
-    fun copyToClipboard(cmd: Cmd.CopyToClipboard)
+    fun copyToClipboard(label: String, text: String)
     fun startDeleteTimer(cmd: Cmd.StartDeleteTimer)
     fun cancelDeleteTimer(cmd: Cmd.CancelDeleteTimer)
     fun deletePlant(cmd: Cmd.DeletePlant)
@@ -155,33 +152,22 @@ class PlantEffectsImpl(
                 val lastWeighedAt = row.last_weighed_at?.let(Instant::ofEpochMilli)
                 val pot: Tare = row.tare_grams?.let { Tare.Known(it) } ?: Tare.Unknown
 
-                val records = if (activeMeasurements.isNotEmpty()) {
-                    activeMeasurements.withRates().toMonthGroupUiModels(ZoneId.systemDefault())
-                } else {
-                    emptyList()
-                }
-
                 PlantFacts(
                     id = plantId,
                     name = row.plant_name,
                     latinName = row.species_name ?: "Incertae sedis",
-                    records = records,
                     dryingForecast = forecast,
                     lastWeighedAt = lastWeighedAt,
                     speciesId = row.species_id,
                     hasWatering = row.has_watering != 0L,
-                    activeMeasurementPoints = activeMeasurements.map {
-                        ChartPoint(timestamp = it.timestamp.toEpochMilli(), grams = it.weightGrams)
-                    },
                     activeMeasurements = activeMeasurements,
                     readyAt = readyAt(lastWeighedAt, forecast.recommendedInterval),
-
-                    analyzedPhases.latestMoisture(pot),
-                    timeline(emptyList(), emptyList()),
+                    moisture = analyzedPhases.latestMoisture(pot),
+                    timeline = timeline(emptyList(), emptyList()),
                     plantPhoto = row.photo_path,
                 )
             }.sortedWith(
-                compareBy<PlantFacts> { it.records.isNotEmpty() }
+                compareBy<PlantFacts> { it.activeMeasurements.isNotEmpty() }
                     .thenBy(nullsLast()) { it.readyAt }
                     .thenBy {
                         (it.dryingForecast as? DryingForecast.Active)?.daysUntilPlateau
@@ -193,7 +179,7 @@ class PlantEffectsImpl(
     override fun exportCsv(cmd: Cmd.ExportCsv) {
         scope.launch(Dispatchers.IO) {
             val msg: PlantsViewModel.UiText = try {
-                val out = deps.openOut(cmd.uri) ?: return@launch emitEffect(
+                val out = deps.openOut(cmd.uri.value.toUri()) ?: return@launch emitEffect(
                     ShowMessage(
                         Resource(R.string.error_cannot_open_file)
                     )
@@ -210,7 +196,7 @@ class PlantEffectsImpl(
     override fun importCsv(cmd: Cmd.ImportCsv) {
         scope.launch(Dispatchers.IO) {
             val msg: PlantsViewModel.UiText = try {
-                val input = deps.openIn(cmd.uri) ?: return@launch emitEffect(
+                val input = deps.openIn(cmd.uri.value.toUri()) ?: return@launch emitEffect(
                     ShowMessage(
                         Resource(R.string.error_cannot_open_file)
                     )
@@ -269,11 +255,24 @@ class PlantEffectsImpl(
 
     override fun copyPhoto(cmd: Cmd.CopyPhoto) {
         scope.launch {
-            runCatching { deps.copyPhoto(cmd.uri) }.onSuccess { path ->
+            runCatching { deps.copyPhoto(cmd.uri.value.toUri()) }.onSuccess { path ->
                 dispatch(AddPhotoCopied(path))
             }.onFailure {
                 emitEffect(ShowMessage(Resource(R.string.error_failed_to_add_photo)))
             }
+        }
+    }
+
+    override fun copyPlantPhoto(cmd: Cmd.CopyPlantPhoto) {
+        scope.launch {
+            runCatching { deps.copyPhoto(cmd.uri.value.toUri()) }
+                .onSuccess { path ->
+                    dispatch(PlantIntent.Overview.PhotoCopied(cmd.plantId, path))
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    emitEffect(ShowMessage(Resource(R.string.error_failed_to_add_photo)))
+                }
         }
     }
 
@@ -364,8 +363,8 @@ class PlantEffectsImpl(
         }
     }
 
-    override fun copyToClipboard(cmd: Cmd.CopyToClipboard) {
-        emitEffect(CopyToClipboard(cmd.label, cmd.text))
+    override fun copyToClipboard(label: String, text: String) {
+        emitEffect(CopyToClipboard(label, text))
     }
 
     override fun startDeleteTimer(cmd: Cmd.StartDeleteTimer) {
@@ -382,19 +381,6 @@ class PlantEffectsImpl(
     override fun deletePlant(cmd: Cmd.DeletePlant) {
         timers.remove(cmd.plantId)
         scope.launch(Dispatchers.IO) { removePlant(database, cmd.plantId.value) }
-    }
-
-    override fun copyPlantPhoto(cmd: Cmd.CopyPlantPhoto) {
-        scope.launch {
-            runCatching { deps.copyPhoto(cmd.uri) }
-                .onSuccess { path ->
-                    dispatch(PlantIntent.Overview.PhotoCopied(cmd.plantId, path))
-                }
-                .onFailure { e ->
-                    if (e is CancellationException) throw e
-                    emitEffect(ShowMessage(Resource(R.string.error_failed_to_add_photo)))
-                }
-        }
     }
 
     override fun savePlantPhoto(cmd: Cmd.SavePlantPhoto) {

@@ -1,28 +1,27 @@
-package com.zghonnyk.plateau.feature.main.ui.state
+package com.zghonnyk.domain.state
 
-import androidx.compose.foundation.text.input.TextFieldState
+import com.zghonnyk.domain.AddPlantForm
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.PlantFacts
 import com.zghonnyk.domain.PlantId
-import com.zghonnyk.plateau.feature.main.ui.extentions.toClipboardText
-import com.zghonnyk.plateau.feature.main.ui.state.Cmd.DeleteMeasurement
-import com.zghonnyk.plateau.feature.main.ui.state.Cmd.DeleteWatering
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.History
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryMeas
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.HistoryWaters
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.Details.Plant
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.AddMeasurement
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditMeasurement
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.EditPlant
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.HistoryModal
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.HistoryModal.EditWatering
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.LogWatering
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Pruning
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState.PlantModal.Repotting
+import com.zghonnyk.domain.SpeciesSelection
+import com.zghonnyk.domain.state.PlantState.Details.History
+import com.zghonnyk.domain.state.PlantState.Details.HistoryMeas
+import com.zghonnyk.domain.state.PlantState.Details.HistoryWaters
+import com.zghonnyk.domain.state.PlantState.Details.Plant
+import com.zghonnyk.domain.state.PlantState.PlantModal.AddMeasurement
+import com.zghonnyk.domain.state.PlantState.PlantModal.EditMeasurement
+import com.zghonnyk.domain.state.PlantState.PlantModal.EditPlant
+import com.zghonnyk.domain.state.PlantState.PlantModal.HistoryModal
+import com.zghonnyk.domain.state.PlantState.PlantModal.HistoryModal.EditWatering
+import com.zghonnyk.domain.state.PlantState.PlantModal.LogWatering
+import com.zghonnyk.domain.state.PlantState.PlantModal.Pruning
+import com.zghonnyk.domain.state.PlantState.PlantModal.Repotting
 import com.zghonnyk.vector_zipper.VectorZipper
 import java.time.Instant
 import java.time.YearMonth
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent as I
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState as S
+import com.zghonnyk.domain.state.PlantIntent as I
+import com.zghonnyk.domain.state.PlantState as S
 
 const val DELETE_DELAY_MS = 10_000L
 
@@ -50,10 +49,10 @@ fun update(state: S.Active, intent: I, now: Instant): Next = when (intent) {
 private fun measurementEdit(
     state: S.Active,
     id: MeasurementId,
-    weightInput: TextFieldState,
+    weightInput: String,
     timestamp: Instant,
 ): Next =
-    weightInput.text.toString().toPositiveDoubleOrNull()
+    weightInput.toPositiveDoubleOrNull()
         ?.let { w -> Next(state, Cmd.UpdateMeasurement(id, w, timestamp.toEpochMilli())) }
         ?: Next.just(state)
 
@@ -83,10 +82,10 @@ fun updateDeletions(
         resolveDeletion(pending, intent.plantId, Cmd.DeletePlant(intent.plantId))
 }
 private fun updateEditingWatering(state: S.Active, i: I.EditingWatering): Next =
-    (state as? HistoryModal.EditWatering)?.let { s ->
+    (state as? EditWatering)?.let { s ->
         when (i) {
-            I.EditingWatering.Save ->
-                parseOptionalWeight(s.volumeInput.text.toString()).fold(
+            is I.EditingWatering.Save ->
+                parseOptionalWeight(i.volume).fold(
                     onSuccess = { volume ->
                         Next(
                             s,
@@ -121,23 +120,31 @@ private fun editMeasurement(
 ): S.Active = HistoryModal.EditMeasurement(
     parent = parent,
     measurementId = i.id,
-    weightInput = TextFieldState(i.currentWeightString),
+    weightInput = i.currentWeightString,
     originalTimestamp = i.timestamp,
     timestamp = i.timestamp,
     isDateTimePickerOpen = false,
 )
 
 private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
-    is I.Details.DeleteMeasurement -> Next(state, DeleteMeasurement(i.id))
-    is I.Details.DeleteWatering -> Next(state, DeleteWatering(i.id))
+    is I.Details.DeleteMeasurement -> Next(state, Cmd.DeleteMeasurement(i.id))
+    is I.Details.DeleteWatering -> Next(state, Cmd.DeleteWatering(i.id))
     is I.Details.CopyMonth -> copyMonth(state, i.month)
 
     I.Details.GoLeft -> onPlant(state) { it.copy(zipper = it.zipper.goBack()) }
     I.Details.GoRight -> onPlant(state) { it.copy(zipper = it.zipper.goForward()) }
-    I.Details.OpenAddMeasurement -> onPlant(state) { AddMeasurement(parent = it) }
-    I.Details.OpenWateringDialog -> onPlant(state) { LogWatering(parent = it) }
-    I.Details.OpenPruning -> onPlant(state) { Pruning(parent = it) }
-    I.Details.OpenRepottingDialog -> onPlant(state) { Repotting(parent = it) }
+    I.Details.OpenAddMeasurement -> onPlant(state) {
+        AddMeasurement(parent = it, customTimestamp = null, isDateTimePickerOpen = false)
+    }
+    I.Details.OpenWateringDialog -> onPlant(state) {
+        LogWatering(parent = it, customTimestamp = null, isDateTimePickerOpen = false)
+    }
+    I.Details.OpenPruning -> onPlant(state) {
+        Pruning(parent = it, customTimestamp = null, isDateTimePickerOpen = false)
+    }
+    I.Details.OpenRepottingDialog -> onPlant(state) {
+        Repotting(parent = it, customTimestamp = null, isDateTimePickerOpen = false)
+    }
     I.Details.OpenMeasurementHistory,
     I.Details.OpenWateringHistory -> onPlant(state) { History(parent = it) }
     I.Details.StartEditingPlant -> (state as? Plant)?.let {
@@ -145,7 +152,7 @@ private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
             EditPlant(
                 parent = it,
                 plantId = it.focus.id,
-                nameInput = TextFieldState(it.focus.name),
+                nameInput = it.focus.name,
                 selectedSpeciesId = it.focus.speciesId,
                 isDropdownExpanded = false,
                 speciesList = emptyList(),
@@ -166,7 +173,7 @@ private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
         EditWatering(
             parent = it,
             wateringId = i.wateringEventId,
-            volumeInput = TextFieldState(i.currentMl),
+            volumeInput = i.currentMl,
             originalTimestamp = i.timestamp,
             timestamp = i.timestamp,
             isDateTimePickerOpen = false,
@@ -178,10 +185,7 @@ private fun updateDetails(state: S.Active, i: I.Details): Next = when (i) {
 
 private fun copyMonth(state: S.Active, month: YearMonth): Next =
     (state as? Plant)
-        ?.zipper?.focus?.records?.find { it.month == month }
-        ?.let { g ->
-            Next(state, Cmd.CopyToClipboard(g.monthNameAndYearTitle, g.toClipboardText()))
-        }
+        ?.let { Next(state, Cmd.CopyMonth(it.focus.id, month)) }
         ?: Next.just(state)
 
 private fun updateOverview(state: S.Active, i: I.Overview): Next =
@@ -205,7 +209,7 @@ private fun updateOverview(state: S.Active, i: I.Overview): Next =
                         S.EditingName(
                             parent = s,
                             plantId = plant.id,
-                            nameInput = TextFieldState(plant.name),
+                            nameInput = plant.name,
                             selectedSpeciesId = plant.speciesId,
                             isDropdownExpanded = false,
                             speciesList = emptyList(),
@@ -224,8 +228,9 @@ private fun updateOverview(state: S.Active, i: I.Overview): Next =
 private fun updateEditingMeasurement(state: S.Active, i: I.EditingMeasurement): Next =
     when (state) {
         is EditMeasurement -> when (i) {
-            I.EditingMeasurement.Save ->
-                measurementEdit(state, state.measurementId, state.weightInput, state.timestamp)
+            is I.EditingMeasurement.Save ->
+                measurementEdit(state, state.measurementId, i.weight, state.timestamp)
+
             I.EditingMeasurement.OpenDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = true))
             I.EditingMeasurement.CloseDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = false))
             is I.EditingMeasurement.SetTimestamp ->
@@ -234,7 +239,7 @@ private fun updateEditingMeasurement(state: S.Active, i: I.EditingMeasurement): 
         }
 
         is HistoryModal.EditMeasurement -> when (i) {
-            I.EditingMeasurement.Save ->
+           is I.EditingMeasurement.Save ->
                 measurementEdit(state, state.measurementId, state.weightInput, state.timestamp)
             I.EditingMeasurement.OpenDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = true))
             I.EditingMeasurement.CloseDateTimePicker -> Next.just(state.copy(isDateTimePickerOpen = false))
@@ -261,8 +266,8 @@ private fun parseOptionalWeight(raw: String): Result<Double?> =
 private fun updateEditingPlant(state: S.Active, i: I.EditingPlant): Next {
     val s = state as? EditPlant ?: return Next.just(state)
     return when (i) {
-        I.EditingPlant.Save -> {
-            val name = s.nameInput.text.toString().trim()
+        is I.EditingPlant.Save -> {
+            val name = i.name.trim()
             if (name.isEmpty()) return Next.just(s)
             Next(s.parent, Cmd.UpdatePlant(s.plantId, name, s.selectedSpeciesId))
         }
@@ -275,9 +280,8 @@ private fun updateEditingPlant(state: S.Active, i: I.EditingPlant): Next {
 private fun updateAddingMeasurement(state: S.Active, i: I.AddingMeasurement, now: Instant): Next {
     val s = state as? AddMeasurement ?: return Next.just(state)
     return when (i) {
-        I.AddingMeasurement.Save -> {
-            val weight = s.weightInput.text.toString().toPositiveDoubleOrNull()
-                ?: return Next.just(s)
+        is I.AddingMeasurement.Save -> {
+            val weight = i.weight.toPositiveDoubleOrNull() ?: return Next.just(s)
             Next(
                 s.parent,
                 Cmd.SaveMeasurement(
@@ -297,8 +301,8 @@ private fun updateAddingMeasurement(state: S.Active, i: I.AddingMeasurement, now
 private fun updatePruning(state: S.Active, i: I.Pruning, now: Instant): Next {
     val s = state as? Pruning ?: return Next.just(state)
     return when (i) {
-        I.Pruning.Save -> {
-            val removed = parseOptionalWeight(s.weightInput.text.toString())
+        is I.Pruning.Save -> {
+            val removed = parseOptionalWeight(i.removedWeight)
                 .getOrElse { return Next.just(s) }
             Next(
                 s.parent,
@@ -319,8 +323,8 @@ private fun updatePruning(state: S.Active, i: I.Pruning, now: Instant): Next {
 private fun updateRepotting(state: S.Active, i: I.Repotting, now: Instant): Next {
     val s = state as? Repotting ?: return Next.just(state)
     return when (i) {
-        I.Repotting.Save -> {
-            val weightAfter = parseOptionalWeight(s.weightInput.text.toString())
+        is I.Repotting.Save -> {
+            val weightAfter = parseOptionalWeight(i.weightAfter)
                 .getOrElse { return Next.just(s) }
             Next(
                 s.parent,
@@ -342,10 +346,10 @@ private fun updateRepotting(state: S.Active, i: I.Repotting, now: Instant): Next
 private fun updateLoggingWatering(state: S.Active, i: I.LoggingWatering, now: Instant): Next {
     val s = state as? LogWatering ?: return Next.just(state)
     return when (i) {
-        I.LoggingWatering.Save -> {
-            val volume = parseOptionalWeight(s.volumeInput.text.toString())
+        is I.LoggingWatering.Save -> {
+            val volume = parseOptionalWeight(i.volume)
                 .getOrElse { return Next.just(s) }
-            val weight = parseOptionalWeight(s.weightInput.text.toString())
+            val weight = parseOptionalWeight(i.weight)
                 .getOrElse { return Next.just(s) }
             Next(
                 s.parent,
@@ -371,8 +375,8 @@ private fun updateCreating(state: S.Active, i: I.Creating, now: Instant): Next {
             else -> Next.just(state)
         }
     return when (i) {
-        I.Creating.Save -> {
-            val name = s.form.customName.text.toString().trim()
+        is I.Creating.Save -> {
+            val name = i.name.trim()
             if (name.isEmpty()) return Next.just(s)
             val speciesId = when (val sel = s.form.speciesSelection) {
                 is SpeciesSelection.Selected -> sel.species.id.value
@@ -399,15 +403,14 @@ private fun updateCreating(state: S.Active, i: I.Creating, now: Instant): Next {
         )
     }
 }
-val S.EditingName.canSave: Boolean
-    get() = nameInput.text.toString().trim().isNotEmpty()
+fun canSaveName(name: String): Boolean = name.trim().isNotEmpty()
 private fun updateEditingName(state: S.Active, i: I.EditingName): Next =
     (state as? S.EditingName)?.let { s ->
         when (i) {
-            I.EditingName.Save ->
-                if (s.canSave) Next(
+            is I.EditingName.Save ->
+                if (canSaveName(i.name)) Next(
                     s.parent,
-                    Cmd.UpdatePlant(s.plantId, s.nameInput.text.toString().trim(), s.selectedSpeciesId)
+                    Cmd.UpdatePlant(s.plantId, i.name.trim(), s.selectedSpeciesId)
                 ) else Next.just(s)
 
             is I.EditingName.ToggleDropdown ->
@@ -445,18 +448,12 @@ private fun S.Active.onLoaded(m: I.Loaded): S.Active = when (m) {
             ?: this
 }
 
-// ───────────── свежий список растений (подписка на БД) ─────────────
-
-/**
- * Чистая функция: ViewModel зовёт её из подписки на БД.
- * Список протаскивается по всей цепочке предков — цена «родитель в типе».
- */
-fun applyPlants(current: S, plants: List<PlantUi>): S = when (current) {
+fun applyPlants(current: S, plants: List<PlantFacts>): S = when (current) {
     S.DBUninitialized -> S.Overview(plants)
     is S.Active -> current.withPlants(plants)
 }
 
-private fun S.Active.withPlants(plants: List<PlantUi>): S.Active {
+private fun S.Active.withPlants(plants: List<PlantFacts>): S.Active {
     if (plants.isEmpty()) {
         return if (this is S.Creating) copy(parent = S.Overview(emptyList())) else S.Overview(
             emptyList()
@@ -487,13 +484,13 @@ private fun S.Active.withPlants(plants: List<PlantUi>): S.Active {
             val newHistory = History(rebasedPlant)
             when (this) {
                 is HistoryModal.EditMeasurement -> copy(parent = newHistory)
-                is HistoryModal.EditWatering -> copy(parent = newHistory)
+                is EditWatering -> copy(parent = newHistory)
             }
         }
     }
 }
 
-private fun Plant.refocused(plants: List<PlantUi>): Plant {
+private fun Plant.refocused(plants: List<PlantFacts>): Plant {
     val i = plants.indexOfFirst { it.id == focus.id }
         .takeIf { it != -1 }
         ?: zipper.index.coerceAtMost(plants.lastIndex)
@@ -501,7 +498,7 @@ private fun Plant.refocused(plants: List<PlantUi>): Plant {
 }
 
 private inline fun Plant.rebased(
-    plants: List<PlantUi>,
+    plants: List<PlantFacts>,
     build: (Plant) -> S.Active,
 ): S.Active {
     val next = refocused(plants)

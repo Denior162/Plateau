@@ -63,11 +63,6 @@ private tailrec fun fib8Step(remaining: UInt, current: Int, next: Int): Int =
     if (remaining == 0u) current
     else fib8Step(remaining - 1u, next, current + next)
 
-fun spacingStep(index: UInt): Dp = when (index) {
-    0u -> 0.dp
-    1u -> 4.dp
-    else -> fib8Step(remaining = index - 2u, current = 8, next = 16).dp
-}
 val spacing: Spacing
     @Composable
     @ReadOnlyComposable

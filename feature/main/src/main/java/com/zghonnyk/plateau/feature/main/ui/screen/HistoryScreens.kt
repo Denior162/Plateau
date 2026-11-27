@@ -10,9 +10,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,12 +32,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.zghonnyk.domain.PhaseBreak
 import com.zghonnyk.domain.Watering
 import com.zghonnyk.domain.Weighing
+import com.zghonnyk.domain.state.PlantIntent
+import com.zghonnyk.domain.state.PlantState
 import com.zghonnyk.plateau.feature.main.R
 import com.zghonnyk.plateau.feature.main.ui.components.MeasurementDateTimePicker
 import com.zghonnyk.plateau.feature.main.ui.state.HistoryUIModel
 import com.zghonnyk.plateau.feature.main.ui.state.MeasurementUiModel
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.WateringUiModel
 import com.zghonnyk.ui.theme.spacing
@@ -142,6 +142,7 @@ fun EditMeasurementDialog(
     state: PlantState.PlantModal.HistoryModal.EditMeasurement,
     onIntent: (PlantIntent) -> Unit,
 ) {
+    val weightState = rememberTextFieldState(initialText = state.weightInput)
     val formattedDate = remember(state.timestamp) {
         DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
             .withZone(ZoneId.systemDefault())
@@ -154,7 +155,7 @@ fun EditMeasurementDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 OutlinedTextField(
-                    state = state.weightInput,
+                    state = weightState,
                     label = { Text(stringResource(R.string.history_weight_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     lineLimits = TextFieldLineLimits.SingleLine,
@@ -167,7 +168,11 @@ fun EditMeasurementDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) { Text(stringResource(R.string.save_button)) }
+            TextButton(
+                onClick = {
+                    onIntent(PlantIntent.EditingMeasurement.Save(weightState.text.toString()))
+                }
+            ) { Text(stringResource(R.string.save_button)) }
         },
         dismissButton = {
             TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text(stringResource(R.string.cancel_button)) }
@@ -181,12 +186,12 @@ fun EditMeasurementDialog(
         )
     }
 }
-
 @Composable
 fun EditWateringDialog(
     state: PlantState.PlantModal.HistoryModal.EditWatering,
     onIntent: (PlantIntent) -> Unit,
 ) {
+    val volumeState = rememberTextFieldState(initialText = state.volumeInput)
     val formattedDate = remember(state.timestamp) {
         DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
             .withZone(ZoneId.systemDefault())
@@ -199,7 +204,7 @@ fun EditWateringDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 OutlinedTextField(
-                    state = state.volumeInput,
+                    state = volumeState,
                     label = { Text(stringResource(R.string.history_volume_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     lineLimits = TextFieldLineLimits.SingleLine,
@@ -212,7 +217,11 @@ fun EditWateringDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onIntent(PlantIntent.EditingWatering.Save) }) { Text(stringResource(R.string.save_button)) }
+            TextButton(
+                onClick = {
+                    onIntent(PlantIntent.EditingWatering.Save(volumeState.text.toString()))
+                }
+            ) { Text(stringResource(R.string.save_button)) }
         },
         dismissButton = {
             TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text(stringResource(R.string.cancel_button)) }

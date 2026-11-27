@@ -21,6 +21,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -70,18 +71,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.zghonnyk.domain.DryingForecast
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.PlantId
 import com.zghonnyk.domain.percentInt
+import com.zghonnyk.domain.state.PlantIntent
+import com.zghonnyk.domain.state.PlantIntent.LoggingWatering.SetWateringTimestamp
+import com.zghonnyk.domain.state.PlantIntent.Pruning.SetPruningTimestamp
+import com.zghonnyk.domain.state.PlantIntent.Repotting.SetRepottingTimestamp
+import com.zghonnyk.domain.state.PlantState
 import com.zghonnyk.plateau.feature.main.R
 import com.zghonnyk.plateau.feature.main.ui.components.DryingChart
 import com.zghonnyk.plateau.feature.main.ui.components.MeasurementDateTimePicker
 import com.zghonnyk.plateau.feature.main.ui.components.daysText
 import com.zghonnyk.plateau.feature.main.ui.components.statusText
 import com.zghonnyk.plateau.feature.main.ui.state.MonthGroupUiModel
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.LoggingWatering.SetWateringTimestamp
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Pruning.SetPruningTimestamp
-import com.zghonnyk.plateau.feature.main.ui.state.PlantIntent.Repotting.SetRepottingTimestamp
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.plateau.feature.main.ui.state.RecordUiModel
 import com.zghonnyk.plateau.feature.main.ui.state.placeholderText
@@ -99,6 +101,7 @@ import androidx.compose.material3.MaterialTheme as Theme
 @Composable
 fun PlantScreen(
     plant: PlantState.Details.Plant,
+    uiPlants: Map<PlantId, PlantUi>,
     modal: PlantState.PlantModal?,
     onIntent: (PlantIntent) -> Unit,
 ) {
@@ -136,6 +139,7 @@ fun PlantScreen(
     }
 
     val adding = modal as? PlantState.PlantModal.AddMeasurement
+    val addWeightState = remember(adding != null) { TextFieldState() }
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     Box(modifier = Modifier.fillMaxSize()) {
@@ -154,16 +158,18 @@ fun PlantScreen(
                     isEmptyLefts = zipper.isEmptyLefts,
                     isEmptyRights = zipper.isEmptyRights,
                     isInputActive = adding != null,
-                    weightInput = adding?.weightInput ?: remember { TextFieldState() },
+                    weightInput = addWeightState,
                     customTimestamp = adding?.customTimestamp,
                     isDateTimePickerOpen = adding?.isDateTimePickerOpen == true,
-                    prediction = plant.focus.prediction?.placeholderText(),
+                    prediction = uiPlants[plant.focus.id]?.prediction?.placeholderText(),
                     onGoLeft = { onIntent(PlantIntent.Details.GoLeft) },
                     onGoRight = { onIntent(PlantIntent.Details.GoRight) },
                     onOpenAddMeasurement = { onIntent(PlantIntent.Details.OpenAddMeasurement) },
                     onOpenWateringDialog = { onIntent(PlantIntent.Details.OpenWateringDialog) },
                     onOpenPrunDialog = { onIntent(PlantIntent.Details.OpenPruning) },
-                    onSaveMeasurement = { onIntent(PlantIntent.AddingMeasurement.Save) },
+                    onSaveMeasurement = {
+                        onIntent(PlantIntent.AddingMeasurement.Save(addWeightState.text.toString()))
+                    },
                     onCancelMeasurement = { onIntent(PlantIntent.Back) },
                     onOpenDateTimePicker = { onIntent(PlantIntent.AddingMeasurement.OpenDateTimePicker) },
                     onCloseDateTimePicker = { onIntent(PlantIntent.AddingMeasurement.CloseDateTimePicker) },
@@ -185,9 +191,10 @@ fun PlantScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
             ) { page ->
+                val pagePlant = uiPlants[zipper.list[page].id] ?: return@HorizontalPager
                 PlantScreenContent(
                     Modifier.padding(horizontal = spacing.large),
-                    plant = zipper.list[page],
+                    plant = pagePlant,
                     onIntent = onIntent,
                     onOpenMeasurementsHistory = { onIntent(PlantIntent.Details.OpenMeasurementHistory) },
                     onOpenWateringHistory = { onIntent(PlantIntent.Details.OpenWateringHistory) },
@@ -203,13 +210,15 @@ fun PlantScreen(
 @Composable
 fun WateringDialog(
     state: PlantState.PlantModal.LogWatering,
-    onSave: () -> Unit,
+    onSave: (String, String) -> Unit,
     onCancel: () -> Unit,
     onOpenDateTimePicker: () -> Unit,
     onCloseDateTimePicker: () -> Unit,
     onSetTimestamp: (Instant) -> Unit
 ) {
-    val weightText = state.weightInput.text.toString()
+    val volumeInput = rememberTextFieldState()
+    val weightInput = rememberTextFieldState()
+    val weightText = weightInput.text.toString()
     val weightValid = weightText.isBlank() || weightText.trim().replace(',', '.').toDoubleOrNull()
         ?.let { it > 0 } == true
 
@@ -226,14 +235,14 @@ fun WateringDialog(
                 style = Theme.typography.bodySmall
             )
             OutlinedTextField(
-                state = state.volumeInput,
+                state = volumeInput,
                 label = { Text(stringResource(R.string.watering_volume_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 lineLimits = TextFieldLineLimits.SingleLine,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
             OutlinedTextField(
-                state = state.weightInput,
+                state = weightInput,
                 label = { Text(stringResource(R.string.watering_weight_label)) },
                 isError = !weightValid,
                 modifier = Modifier.fillMaxWidth(),
@@ -249,7 +258,8 @@ fun WateringDialog(
         }
     }, confirmButton = {
         TextButton(
-            onClick = onSave, enabled = weightValid
+            onClick = { onSave(volumeInput.text.toString(), weightInput.text.toString()) },
+            enabled = weightValid
         ) { Text(stringResource(R.string.save_button)) }
     }, dismissButton = {
         TextButton(onClick = onCancel) {
@@ -261,13 +271,14 @@ fun WateringDialog(
 @Composable
 fun PruningDialog(
     state: PlantState.PlantModal.Pruning,
-    onSave: () -> Unit,
+    onSave: (String) -> Unit,
     onCancel: () -> Unit,
     onOpenDateTimePicker: () -> Unit,
     onCloseDateTimePicker: () -> Unit,
     onSetTimestamp: (Instant) -> Unit
 ) {
-    val weightText = state.weightInput.text.toString()
+    val weightInput = rememberTextFieldState()
+    val weightText = weightInput.text.toString()
     val weightValid = weightText.isBlank() || weightText.trim().replace(',', '.').toDoubleOrNull()
         ?.let { it > 0 } == true
 
@@ -292,7 +303,7 @@ fun PruningDialog(
                     style = Theme.typography.bodySmall
                 )
                 OutlinedTextField(
-                    state = state.weightInput,
+                    state = weightInput,
                     label = { Text(stringResource(R.string.weight_after_pruning)) },
                     isError = !weightValid,
                     modifier = Modifier.fillMaxWidth(),
@@ -309,7 +320,7 @@ fun PruningDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = onSave, enabled = weightValid
+                onClick = { onSave(weightInput.text.toString()) }, enabled = weightValid
             ) { Text("Зберегти") }
         },
         dismissButton = {
@@ -325,67 +336,64 @@ private fun DetailsDialogs(modal: PlantState.PlantModal?, onIntent: (PlantIntent
         is PlantState.PlantModal.LogWatering -> {
             WateringDialog(
                 state = modal,
-                onSave = { onIntent(PlantIntent.LoggingWatering.Save) },
+                onSave = { volume, weight -> onIntent(PlantIntent.LoggingWatering.Save(volume, weight)) },
                 onCancel = { onIntent(PlantIntent.Back) },
                 onOpenDateTimePicker = { onIntent(PlantIntent.LoggingWatering.OpenDateTimePicker) },
                 onCloseDateTimePicker = { onIntent(PlantIntent.LoggingWatering.CloseDateTimePicker) },
-                onSetTimestamp = { instant ->
-                    onIntent(SetWateringTimestamp(instant))
-                }
+                onSetTimestamp = { instant -> onIntent(SetWateringTimestamp(instant)) }
             )
         }
 
-        is PlantState.PlantModal.EditMeasurement -> EditWeightDialog(
-            title = "Редагувати вимір",
-            input = modal.weightInput,
-            onSave = { onIntent(PlantIntent.EditingMeasurement.Save) },
-            onCancel = { onIntent(PlantIntent.Back) },
-        )
+        is PlantState.PlantModal.EditMeasurement -> {
+            val weightState = rememberTextFieldState(initialText = modal.weightInput)
+            EditWeightDialog(
+                title = "Редагувати вимір",
+                input = weightState,
+                onSave = { onIntent(PlantIntent.EditingMeasurement.Save(weightState.text.toString())) },
+                onCancel = { onIntent(PlantIntent.Back) },
+            )
+        }
 
         is PlantState.PlantModal.EditPlant -> EditPlantDialog(
             modal = modal,
-            onSave = { onIntent(PlantIntent.EditingPlant.Save) },
+            onSave = { name -> onIntent(PlantIntent.EditingPlant.Save(name)) },
             onCancel = { onIntent(PlantIntent.Back) },
             onToggleDropdown = { expanded -> onIntent(PlantIntent.EditingPlant.ToggleDropdown(expanded)) },
             onSelectSpecies = { speciesId -> onIntent(PlantIntent.EditingPlant.SelectSpecies(speciesId)) },
         )
 
         is PlantState.PlantModal.AddMeasurement -> Unit
-
         null -> Unit
+
         is PlantState.PlantModal.Pruning -> PruningDialog(
             state = modal,
-            onSave = { onIntent(PlantIntent.Pruning.Save) },
+            onSave = { weight -> onIntent(PlantIntent.Pruning.Save(weight)) },
             onCancel = { onIntent(PlantIntent.Back) },
             onOpenDateTimePicker = { onIntent(PlantIntent.Pruning.OpenDateTimePicker) },
             onCloseDateTimePicker = { onIntent(PlantIntent.Pruning.CloseDateTimePicker) },
-            onSetTimestamp = { instant ->
-                onIntent(SetPruningTimestamp(instant))
-            }
+            onSetTimestamp = { instant -> onIntent(SetPruningTimestamp(instant)) }
         )
 
         is PlantState.PlantModal.Repotting -> RepottingDialog(
             state = modal,
-            onSave = { onIntent(PlantIntent.Repotting.Save) },
+            onSave = { weight -> onIntent(PlantIntent.Repotting.Save(weight)) },
             onCancel = { onIntent(PlantIntent.Back) },
             onOpenDateTimePicker = { onIntent(PlantIntent.Repotting.OpenDateTimePicker) },
             onCloseDateTimePicker = { onIntent(PlantIntent.Repotting.CloseDateTimePicker) },
-            onSetTimestamp = { instant ->
-                onIntent(SetRepottingTimestamp(instant))
-            }
+            onSetTimestamp = { instant -> onIntent(SetRepottingTimestamp(instant)) }
         )
-
     }
 }
 
 @Composable
 private fun EditPlantDialog(
     modal: PlantState.PlantModal.EditPlant,
-    onSave: () -> Unit,
+    onSave: (String) -> Unit,
     onCancel: () -> Unit,
     onToggleDropdown: (Boolean) -> Unit,
     onSelectSpecies: (Long?) -> Unit,
 ) {
+    val nameState = rememberTextFieldState(initialText = modal.nameInput)
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -399,7 +407,7 @@ private fun EditPlantDialog(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    state = modal.nameInput,
+                    state = nameState,
                     lineLimits = TextFieldLineLimits.SingleLine,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = MaterialTheme.colorScheme.onSurface
@@ -448,7 +456,7 @@ private fun EditPlantDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onSave) {
+            TextButton(onClick = { onSave(nameState.text.toString()) }) {
                 Text(stringResource(R.string.save_button))
             }
         },
@@ -463,13 +471,14 @@ private fun EditPlantDialog(
 @Composable
 fun RepottingDialog(
     state: PlantState.PlantModal.Repotting,
-    onSave: () -> Unit,
+    onSave: (String) -> Unit,
     onCancel: () -> Unit,
     onOpenDateTimePicker: () -> Unit,
     onCloseDateTimePicker: () -> Unit,
     onSetTimestamp: (Instant) -> Unit
 ) {
-    val weightText = state.weightInput.text.toString()
+    val weightInput = rememberTextFieldState()
+    val weightText = weightInput.text.toString()
     val weightValid = weightText.isBlank() || weightText.trim().replace(',', '.').toDoubleOrNull()
         ?.let { it > 0 } == true
 
@@ -495,7 +504,7 @@ fun RepottingDialog(
                     style = Theme.typography.bodySmall
                 )
                 OutlinedTextField(
-                    state = state.weightInput,
+                    state = weightInput,
                     label = { Text(stringResource(R.string.repotting_weight_label)) },
                     isError = !weightValid,
                     modifier = Modifier.fillMaxWidth(),
@@ -512,7 +521,7 @@ fun RepottingDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = onSave, enabled = weightValid
+                onClick = { onSave(weightInput.text.toString()) }, enabled = weightValid
             ) { Text("Зберегти") }
         },
         dismissButton = {
@@ -983,6 +992,7 @@ fun PlantTitle(title: String) = Text(
 
 @Composable
 fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent: (PlantIntent) -> Unit) {
+    val weightInput = rememberTextFieldState()
     val formattedDate = remember(state.timestamp) {
         DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
             .withZone(ZoneId.systemDefault())
@@ -995,7 +1005,7 @@ fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
                 OutlinedTextField(
-                    state = state.weightInput,
+                    state = weightInput,
                     label = { Text(stringResource(R.string.history_weight_label)) },
                     modifier = Modifier.fillMaxWidth(),
                     lineLimits = TextFieldLineLimits.SingleLine,
@@ -1007,7 +1017,7 @@ fun EditMeasurementDialog(state: PlantState.PlantModal.EditMeasurement, onIntent
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save) }) { Text(stringResource(R.string.save_button)) } },
+        confirmButton = { TextButton(onClick = { onIntent(PlantIntent.EditingMeasurement.Save(weightInput.text.toString())) }) { Text(stringResource(R.string.save_button)) } },
         dismissButton = { TextButton(onClick = { onIntent(PlantIntent.Back) }) { Text(stringResource(R.string.cancel_button)) } },
     )
     if (state.isDateTimePickerOpen) {

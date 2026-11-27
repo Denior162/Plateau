@@ -1,7 +1,106 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="view_watering_history">Vidi la historion de akvumado</string>
     <string name="app_name">Altebenaĵo</string>
     <string name="add_plant">Aldoni planton</string>
-    <string name="adding_plant">Aldoni novan planton</string>
-    <string name="add_plant_name_placeholder">Skribu la nomon de la planto tie</string>
+    <string name="adding_plant">Nova planto</string>
+    <string name="export_csv">Eksporti CSV</string>
+    <string name="import_csv">Importi CSV</string>
+    <string name="view_measurement_history">Vidi la historion de mezuroj</string>
+    <string name="drying_insufficient_data">Nesufiĉe da datumoj</string>
+    <string name="drying_still">Sekiĝas (%1$.1f g/tago)</string>
+    <string name="drying_near_plateau">Proksime al la altebenaĵo (%1$.1f g/tago)</string>
+    <string name="days_awaiting">Atendo de mezuroj</string>
+    <string name="days_plateau_reached">Altebenaĵo atingita</string>
+    <string name="add_measurement">Aldoni mezuron</string>
+    <string name="cu_watered">Ĉu akvumita?</string>
+    <string name="not_watered_yet">Ankoraŭ ne akvumita</string>
+    <plurals name="days_to_plateau">
+        <item quantity="one">~%d tago ĝis la altebenaĵo</item>
+        <item quantity="other">~%d tagoj ĝis la altebenaĵo</item>
+    </plurals>
+    <string name="no_meas">Ankoraŭ neniu mezuro.\nTempas aldoni la unuan pezon!</string>
+    <string name="expected_weight_placeholder">%1$d–%2$d g</string>
+    <string name="specify_pruning">Indiki pritondon</string>
+    <string name="weight_after_pruning">Pezo post la pritondo</string>
+    <string name="prune_dialog_title">Post la pritondo la ciklo estos ĝisdatigita. El la antaŭa ciklo oni konsideros nur la humidon de la substrato.</string>
+    <string name="add_picture">Aldoni foton</string>
+    <string name="go_back">Reen</string>
+
+    <!-- MeasurementDateTimePicker -->
+    <string name="picker_next">Sekva</string>
+    <string name="picker_cancel">Nuligi</string>
+    <string name="picker_select_time">Elektu tempon</string>
+    <string name="picker_future_error">Ne eblas elekti estontan tempon</string>
+    <string name="picker_done">Preta</string>
+
+    <!-- AddPlantScreen -->
+    <string name="species_unselected">Neniu specio elektita</string>
+    <string name="species_unknown">Nekonata specio</string>
+    <string name="i_dont_know">Mi ne scias</string>
+
+    <!-- AnalyticsScreen -->
+    <string name="analytics_dynamics_title">Dinamiko dum periodo</string>
+    <string name="analytics_from_date">De: 01.09.2026</string>
+    <string name="analytics_to_date">Ĝis: hodiaŭ</string>
+    <string name="analytics_no_data_period">Neniuj datumoj por ĉi tiu periodo</string>
+    <string name="analytics_period_summary">Mezuroj: %1$d, averaĝa pezo: %2$.1f g</string>
+
+    <!-- HistoryScreens -->
+    <string name="history_weighing_item">%1$s — %2$s g</string>
+    <string name="history_watering_item">%1$s — Akvumado (%2$s)</string>
+    <string name="history_volume_ml">%1$s ml</string>
+    <string name="history_volume_not_specified">Volumeno ne indikita</string>
+    <string name="history_edit_measurement">Redakti mezuron</string>
+    <string name="history_edit_watering">Redakti akvumadon</string>
+    <string name="history_weight_label">Pezo (g)</string>
+    <string name="history_volume_label">Volumeno de akvo (ml)</string>
+    <string name="history_cd_edit">Redakti</string>
+    <string name="history_cd_delete">Forigi</string>
+
+    <!-- PlantScreen -->
+    <string name="watering_dialog_title">Akvumado</string>
+    <string name="watering_dialog_desc">Post la akvumado komenciĝos nova ciklo de mezuroj.</string>
+    <string name="watering_volume_label">Volumeno de akvo (ml), nedeviga</string>
+    <string name="watering_weight_label">Pezo post akvumado kaj plena elfluo de akvo (g)</string>
+    <string name="cd_specify_datetime">Indiki daton kaj horon</string>
+    <string name="repotting_dialog_title">Transplantado</string>
+    <string name="repotting_dialog_desc">Post la transplantado komenciĝos nova ciklo de mezuroj.</string>
+    <string name="repotting_weight_label">Pezo post transplantado (g)</string>
+    <string name="pot_mass_label">Pezo de poto (g)</string>
+    <string name="cd_left">Maldekstren</string>
+    <string name="cd_cancel">Nuligi</string>
+    <string name="cd_save">Konservi</string>
+    <string name="save_button">Konservi</string>
+    <string name="cancel_button">Nuligi</string>
+    <string name="drying_analytics_title">Analizo de sekiĝo</string>
+    <string name="recommended_weighing_interval">Rekomendata intervalo de pesado: %1$d h</string>
+    <string name="current_moisture">Nuna humido: %1$s</string>
+    <string name="predicted_plateau_weight">Prognozita pezo ĉe la altebenaĵo: %1$d g</string>
+    <string name="rmse_format">RMSE: %1$.1f g</string>
+
+    <!-- PotsScreen -->
+    <string name="edit_plant_title">Redakti planton</string>
+    <string name="unknown_species_label">Incertae sedis (nekonata specio)</string>
+    <string name="elapsed_days">%1$d t</string>
+    <string name="elapsed_hours">%1$d h</string>
+    <string name="cd_edit_plant">Redakti planton</string>
+    <string name="cd_delete_plant">Forigi planton</string>
+    <string name="undo_delete">Malfari</string>
+
+    <!-- SpeciesScreen -->
+    <string name="species_screen_title">Specioj de plantoj</string>
+    <string name="species_id_format">ID: %1$s</string>
+
+    <!-- ViewModel -->
+    <string name="error_cannot_open_file">Ne eblis malfermi la dosieron</string>
+    <string name="export_ready">Eksporto preta</string>
+    <string name="export_error">Eraro de eksporto: %1$s</string>
+    <string name="import_success">Plantoj: +%1$d, mezuroj: +%2$d, preterlasitaj duoblaĵoj: %3$d</string>
+    <string name="import_error">Eraro de importo: %1$s</string>
+    <string name="error_failed_to_add_photo">Ne eblis aldoni foton</string>
+    <string name="error_failed_to_save_watering">Ne eblis konservi la ŝanĝojn de akvumado</string>
+    <string name="error_measurement_exists_at_time">Ne eblis konservi: mezuro por ĉi tiu tempo jam ekzistas</string>
+    <string name="weighting_interval_is_not_calculated">Intervalo de pesado ne kalkulita</string>
+    <string name="add_photo">Aldoni foton</string>
 </resources>

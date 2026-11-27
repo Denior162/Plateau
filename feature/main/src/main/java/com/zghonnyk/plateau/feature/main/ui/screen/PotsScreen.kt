@@ -79,10 +79,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import coil.compose.AsyncImage
 import com.zghonnyk.domain.PlantId
+import com.zghonnyk.domain.state.DELETE_DELAY_MS
+import com.zghonnyk.domain.state.PendingDelete
+import com.zghonnyk.domain.state.PlantState
 import com.zghonnyk.plateau.feature.main.R
-import com.zghonnyk.plateau.feature.main.ui.state.DELETE_DELAY_MS
-import com.zghonnyk.plateau.feature.main.ui.state.PendingDelete
-import com.zghonnyk.plateau.feature.main.ui.state.PlantState
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.ui.theme.Nest
 import com.zghonnyk.ui.theme.spacing
@@ -101,7 +101,7 @@ fun PotsScreen(
     onAddPlantClick: () -> Unit,
     onExport: (Uri) -> Unit,
     onImport: (Uri) -> Unit,
-    onSave: () -> Unit,
+    onSave: (String) -> Unit,
     onCancelEdit: () -> Unit,
     onToggleDropdown: (Boolean) -> Unit,
     onSelectSpecies: (Long?) -> Unit,
@@ -109,6 +109,7 @@ fun PotsScreen(
     onUndoDelete: (PlantId) -> Unit,
     onAddPhoto: (PlantId, Uri) -> Unit
 ) {
+    val name = rememberTextFieldState(editingPlant?.nameInput ?: "")
     val searchBarState = rememberSearchBarState()
     val searchFieldState = rememberTextFieldState()
     val lazyListState = rememberLazyListState()
@@ -152,7 +153,8 @@ fun PotsScreen(
         )
 
         editingPlant?.let {
-            EditPlantDialog(it, onToggleDropdown, onSelectSpecies, onSave, onCancel = onCancelEdit)
+            EditPlantDialog(it, onToggleDropdown, onSelectSpecies,
+                { onSave(name.text.toString()) }, onCancel = onCancelEdit)
         }
     }
 }
@@ -574,22 +576,25 @@ private fun EditPlantDialog(
     onSelectSpecies: (Long?) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
-) = AlertDialog(
-    onDismissRequest = onCancel,
-    title = { Text(stringResource(R.string.edit_plant_title)) },
-    text = {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(spacing.medium),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            PlantNameField(editing.nameInput)
-            SpeciesDropdown(editing, onToggleDropdown, onSelectSpecies)
-        }
-    },
-    confirmButton = { TextButton(onClick = onSave) { Text(stringResource(R.string.save_button)) } },
-    dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_button)) } },
-)
+) {
+    val name = rememberTextFieldState(editing.nameInput)
+    AlertDialog(
 
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.edit_plant_title)) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(spacing.medium),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                PlantNameField(name)
+                SpeciesDropdown(editing, onToggleDropdown, onSelectSpecies)
+            }
+        },
+        confirmButton = { TextButton(onClick = onSave) { Text(stringResource(R.string.save_button)) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_button)) } },
+    )
+}
 private fun remainingMs(deadlineMs: Long): Long =
     (deadlineMs - System.currentTimeMillis()).coerceIn(0L, DELETE_DELAY_MS)
 

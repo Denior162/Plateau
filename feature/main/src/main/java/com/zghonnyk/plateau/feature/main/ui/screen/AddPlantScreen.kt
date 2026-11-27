@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenu
@@ -43,10 +44,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
+import com.zghonnyk.domain.AddPlantForm
 import com.zghonnyk.domain.Species
+import com.zghonnyk.domain.SpeciesSelection
 import com.zghonnyk.plateau.feature.main.R
-import com.zghonnyk.plateau.feature.main.ui.state.AddPlantForm
-import com.zghonnyk.plateau.feature.main.ui.state.SpeciesSelection
 import com.zghonnyk.ui.theme.spacing
 import java.io.File
 
@@ -54,13 +55,14 @@ import java.io.File
 fun AddPlantScreen(
     form: AddPlantForm,
     onBack: () -> Unit,
-    onSave: () -> Unit,
+    onSave: (name: String) -> Unit,
     onAddPhoto: (Uri) -> Unit,
     onToggleDropdown: (Boolean) -> Unit,
     speciesList: List<Species>,
     onSelectionChange: (SpeciesSelection) -> Unit,
     onUnknownSpecies: () -> Unit = {}
 ) {
+    val name = rememberTextFieldState("")
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = { AddPlantTopBar(onBack = onBack) }) { innerPadding ->
@@ -73,7 +75,7 @@ fun AddPlantScreen(
             verticalArrangement = Arrangement.spacedBy(spacing.small)
         ) {
             PlantPhotoPickerSection(onAddPhoto = onAddPhoto, form.photoPath)
-            PlantNameField(state = form.customName)
+            PlantNameField(state = name)
             SpeciesDropdownField(
                 isExpanded = form.isDropdownExpanded,
                 onToggleDropdown = onToggleDropdown,
@@ -84,7 +86,7 @@ fun AddPlantScreen(
             )
             Spacer(modifier = Modifier.weight(1f))
             Button(
-                onClick = onSave, modifier = Modifier.fillMaxWidth()
+                onClick = { onSave(name.text.toString()) }, modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Add Plant")
             }

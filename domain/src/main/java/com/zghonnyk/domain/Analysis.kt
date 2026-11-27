@@ -345,7 +345,7 @@ data class Prediction(
     val low: Double,
     val high: Double,
     val basis: Basis,
-    val debugMetadata: String = ""
+    val debugMetadata: String
 )
 
 private data class ModelBasis(
