@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -52,7 +53,9 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -140,8 +143,20 @@ fun PlantScreen(
 
     val adding = modal as? PlantState.PlantModal.AddMeasurement
     val addWeightState = remember(adding != null) { TextFieldState() }
-    val scrollBehavior =
-        TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val canScrollMap = remember { mutableStateMapOf<PlantId, Boolean>() }
+    val currentPlantId = zipper.list.getOrNull(pagerState.currentPage)?.id
+    val topAppBarState = rememberTopAppBarState()
+
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
+        state = topAppBarState,
+        canScroll = { canScrollMap[currentPlantId] == true || topAppBarState.heightOffset < 0f },
+    )
+
+    LaunchedEffect(currentPlantId) {
+        if (canScrollMap[currentPlantId] != true) {
+            topAppBarState.heightOffset = 0f
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier
@@ -191,10 +206,12 @@ fun PlantScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
             ) { page ->
-                val pagePlant = uiPlants[zipper.list[page].id] ?: return@HorizontalPager
+                val plantId = zipper.list[page].id
+                val pagePlant = uiPlants[plantId] ?: return@HorizontalPager
                 PlantScreenContent(
-                    Modifier.padding(horizontal = spacing.large),
+                    modifier = Modifier.padding(horizontal = spacing.large),
                     plant = pagePlant,
+                    onCanScrollChange = { canScroll -> canScrollMap[plantId] = canScroll },
                     onIntent = onIntent,
                     onOpenMeasurementsHistory = { onIntent(PlantIntent.Details.OpenMeasurementHistory) },
                     onOpenWateringHistory = { onIntent(PlantIntent.Details.OpenWateringHistory) },
@@ -705,16 +722,17 @@ fun BottomButtonGroup(
 private fun PlantScreenContent(
     modifier: Modifier,
     plant: PlantUi,
+    onCanScrollChange: (Boolean) -> Unit,
     onIntent: (PlantIntent) -> Unit,
     onOpenMeasurementsHistory: () -> Unit,
     onOpenWateringHistory: () -> Unit,
     onRemove: (MeasurementId) -> Unit,
-    onCopy: (YearMonth) -> Unit
+    onCopy: (YearMonth) -> Unit,
 ) = when (plant.records.isEmpty()) {
     true -> {
-
         Box(
-            modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
         ) {
             Column {
                 Row {
@@ -750,13 +768,20 @@ private fun PlantScreenContent(
     }
 
     false -> {
-        val records = remember(plant.records) {
-            plant.records
+        val listState = rememberLazyListState()
+        val canScroll by remember {
+            derivedStateOf { listState.canScrollForward || listState.canScrollBackward }
+        }
+        LaunchedEffect(canScroll) {
+            onCanScrollChange(canScroll)
         }
 
+        val records = remember(plant.records) { plant.records }
+
         LazyColumn(
+            state = listState,
             modifier = modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)
+            verticalArrangement = Arrangement.spacedBy(spacing.small, Alignment.Bottom),
         ) {
             if (plant.dryingForecast != null) {
                 item(key = "analytics_card") {
@@ -767,7 +792,7 @@ private fun PlantScreenContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(200.dp)
-                                .padding(horizontal = 16.dp),
+                                .padding(horizontal = spacing.small),
                             points = plant.activeMeasurementPoints,
                             expFit = (plant.dryingForecast as? DryingForecast.Active)?.expFit
 
