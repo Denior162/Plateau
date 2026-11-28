@@ -24,11 +24,8 @@ class Nest(val index: Int) {
         require(index >= MIN_NEST_INDEX) { "Index $index is too small for nesting" }
     }
 
-    val outer: Dp = FIB_STEPS[index]
     val inner: Dp = FIB_STEPS[index - 1]
-    val padding: Dp = FIB_STEPS[index - 2]
 
-    val outerShape = RoundedCornerShape(outer)
     val innerShape = RoundedCornerShape(inner)
 }
 

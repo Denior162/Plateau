@@ -10,9 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,8 +26,6 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -40,6 +36,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,6 +80,17 @@ import com.zghonnyk.domain.state.DELETE_DELAY_MS
 import com.zghonnyk.domain.state.PendingDelete
 import com.zghonnyk.domain.state.PlantState
 import com.zghonnyk.plateau.feature.main.R
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.L3
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.L4
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.Level
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.NestButton
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.NestCard
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.NestGroupRow
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.NestRoot
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.NestScope
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.S
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.inner
+import com.zghonnyk.plateau.feature.main.ui.nesting_experiments.nestPaddingHorizontal
 import com.zghonnyk.plateau.feature.main.ui.state.PlantUi
 import com.zghonnyk.ui.theme.Nest
 import com.zghonnyk.ui.theme.spacing
@@ -138,23 +146,28 @@ fun PotsScreen(
             )
         },
     ) { innerPadding ->
-        PotsContent(
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(horizontal = spacing.large),
-            plants = plants,
-            pendingDeletes = pendingDeletes,
-            onSelect = onSelect,
-            onEdit = onEdit,
-            onDelete = onDelete,
-            onUndoDelete = onUndoDelete,
-            lazyListState = lazyListState,
-            onAddPhoto = onAddPhoto
-        )
+        NestRoot {
+            inner().PotsContent(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .nestPaddingHorizontal(this),
+                plants = plants,
+                pendingDeletes = pendingDeletes,
+                onSelect = onSelect,
+                onEdit = onEdit,
+                onDelete = onDelete,
+                onUndoDelete = onUndoDelete,
+                lazyListState = lazyListState,
+                onAddPhoto = onAddPhoto,
+            )
+        }
+
 
         editingPlant?.let {
-            EditPlantDialog(it, onToggleDropdown, onSelectSpecies,
-                { onSave(name.text.toString()) }, onCancel = onCancelEdit)
+            EditPlantDialog(
+                it, onToggleDropdown, onSelectSpecies,
+                { onSave(name.text.toString()) }, onCancel = onCancelEdit
+            )
         }
     }
 }
@@ -288,7 +301,11 @@ private fun PlantSearchInputField(
             ) {
                 Icon(painterResource(R.drawable.back), stringResource(R.string.go_back))
             }
-            SearchBarValue.Collapsed -> Icon(painterResource(R.drawable.pot), contentDescription = null)
+
+            SearchBarValue.Collapsed -> Icon(
+                painterResource(R.drawable.pot),
+                contentDescription = null
+            )
         }
     },
     trailingIcon = {
@@ -296,6 +313,7 @@ private fun PlantSearchInputField(
             textFieldState.text.isNotEmpty() -> IconButton(onClick = { textFieldState.clearText() }) {
                 Icon(painterResource(R.drawable.close), stringResource(R.string.cd_cancel))
             }
+
             searchBarState.targetValue == SearchBarValue.Collapsed ->
                 CsvMenuActions(onExport, onImport)
         }
@@ -311,7 +329,6 @@ fun AddPlantFab(onClick: () -> Unit, expanded: Boolean) = ExtendedFloatingAction
 )
 
 private const val HOURS_PER_DAY = 24
-private val PLANT_CARD_NEST = Nest(3)
 
 sealed interface PlantCardState {
     data object Default : PlantCardState
@@ -336,24 +353,7 @@ private fun plantCardColors(isReadyForAction: Boolean): CardColors =
     }
 
 @Composable
-fun NestedCard(
-    nest: Nest,
-    onClick: () -> Unit,
-    enabled: Boolean,
-    colors: CardColors,
-    modifier: Modifier,
-    content: @Composable ColumnScope.(Nest) -> Unit,
-) = Card(
-    onClick = onClick,
-    enabled = enabled,
-    modifier = modifier,
-    shape = nest.outerShape,
-    colors = colors,
-    content = { content(nest) },
-)
-
-@Composable
-fun PotsContent(
+fun NestScope<L4>.PotsContent(
     modifier: Modifier,
     plants: List<PlantUi>,
     pendingDeletes: List<PendingDelete>,
@@ -366,11 +366,11 @@ fun PotsContent(
 ) = LazyColumn(
     modifier = modifier.fillMaxSize(),
     state = lazyListState,
-    verticalArrangement = Arrangement.spacedBy(spacing.small),
+    verticalArrangement = Arrangement.spacedBy(padding),
     contentPadding = PaddingValues(bottom = spacing.massive),
 ) {
     items(items = plants, key = { it.id.value }) { plant ->
-        PlantItem(
+        inner().PlantItem(
             plant = plant,
             photoFile = rememberPhotoFile(plant.plantPhoto),
             state = pendingDeletes.firstOrNull { it.plantId == plant.id }
@@ -386,7 +386,10 @@ fun PotsContent(
 }
 
 @Composable
-private fun AddPhotoButton(onPicked: (Uri) -> Unit, enabled: Boolean) {
+private fun <P : Level> NestScope<S<P>>.AddPhotoButton(
+    onPicked: (Uri) -> Unit,
+    enabled: Boolean,
+) {
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri -> uri?.let(onPicked) }
@@ -395,7 +398,7 @@ private fun AddPhotoButton(onPicked: (Uri) -> Unit, enabled: Boolean) {
         onClick = { launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
         enabled = enabled,
         modifier = Modifier.size(spacing.huge),
-        shape = PLANT_CARD_NEST.innerShape,
+        shape = shape,
     ) {
         Icon(painterResource(R.drawable.add_photo), stringResource(R.string.add_photo))
     }
@@ -412,7 +415,7 @@ private fun PlantPhoto(file: File, size: Dp, shape: Shape) = AsyncImage(
 )
 
 @Composable
-fun PlantItem(
+fun NestScope<L3>.PlantItem(
     plant: PlantUi,
     photoFile: File?,
     state: PlantCardState,
@@ -422,35 +425,20 @@ fun PlantItem(
     onUndoDelete: () -> Unit,
     onAddPhoto: (Uri) -> Unit,
     modifier: Modifier,
-) = Row(
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(PLANT_CARD_NEST.padding),
-    modifier = modifier,
-) {
-    if (photoFile == null) {
-        AddPhotoButton(
-            onPicked = onAddPhoto,
-            enabled = state is PlantCardState.Default,
-        )
-    }
+) = NestGroupRow(Alignment.Start, modifier, Alignment.CenterVertically) { s ->
+    val active = state is PlantCardState.Default
 
-    NestedCard(
-        nest = PLANT_CARD_NEST,
+    if (photoFile == null) s.AddPhotoButton(onPicked = onAddPhoto, enabled = active)
+
+    NestCard(
+        s = s,
         onClick = onSelect,
-        enabled = state is PlantCardState.Default,
+        enabled = active,
         colors = plantCardColors(plant.isReadyForAction),
         modifier = Modifier.weight(1f),
-    ) { nest ->
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(nest.padding),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(nest.padding),
-        ) {
-            if (photoFile != null) {
-                PlantPhoto(photoFile, spacing.huge, nest.innerShape)
-            }
+    ) { _ ->
+        s.NestGroupRow(Alignment.Start, Modifier.fillMaxWidth(), Alignment.CenterVertically) { l1 ->
+            if (photoFile != null) PlantPhoto(photoFile, spacing.huge, l1.shape)
             Column(Modifier.weight(1f)) {
                 Text(plant.name, style = MaterialTheme.typography.bodyLarge)
                 Text(plant.latinName, style = MaterialTheme.typography.bodyMedium)
@@ -465,33 +453,28 @@ fun PlantItem(
     }
 
     when (state) {
-        PlantCardState.Default -> PlantItemActions(onEdit, onDelete)
-        is PlantCardState.Deletion -> Button(onClick = onUndoDelete) {
-            Text(stringResource(R.string.undo_delete))
+        PlantCardState.Default -> {
+            FilledIconButton(
+                onClick = onEdit,
+                shape = s.shape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                ),
+            ) { Icon(painterResource(R.drawable.edit), stringResource(R.string.cd_edit_plant)) }
+            FilledIconButton(
+                onClick = onDelete,
+                shape = s.shape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ),
+            ) { Icon(painterResource(R.drawable.delete), stringResource(R.string.cd_delete_plant)) }
         }
-    }
-}
-
-@Composable
-private fun PlantItemActions(onEdit: () -> Unit, onDelete: () -> Unit) =
-    Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
-    IconButton(
-        onClick = onEdit,
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        ),
-    ) {
-        Icon(painterResource(R.drawable.edit), stringResource(R.string.cd_edit_plant))
-    }
-    IconButton(
-        onClick = onDelete,
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        ),
-    ) {
-        Icon(painterResource(R.drawable.delete), stringResource(R.string.cd_delete_plant))
+        is PlantCardState.Deletion ->
+            s.NestButton(onClick = onUndoDelete, modifier = Modifier) {
+                Text(stringResource(R.string.undo_delete))
+            }
     }
 }
 
@@ -526,7 +509,9 @@ private fun PlantNameField(state: TextFieldState) {
         textStyle = MaterialTheme.typography.bodyLarge.copy(
             color = MaterialTheme.colorScheme.onSurface,
         ),
-        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
     )
 }
 
@@ -574,7 +559,7 @@ private fun EditPlantDialog(
     editing: PlantState.EditingName,
     onToggleDropdown: (Boolean) -> Unit,
     onSelectSpecies: (Long?) -> Unit,
-    onSave: () -> Unit,
+    onSave: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
     val name = rememberTextFieldState(editing.nameInput)
@@ -591,10 +576,17 @@ private fun EditPlantDialog(
                 SpeciesDropdown(editing, onToggleDropdown, onSelectSpecies)
             }
         },
-        confirmButton = { TextButton(onClick = onSave) { Text(stringResource(R.string.save_button)) } },
+        confirmButton = {
+            TextButton(onClick = { onSave(name.text.toString()) }) {
+                Text(
+                    stringResource(R.string.save_button)
+                )
+            }
+        },
         dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel_button)) } },
     )
 }
+
 private fun remainingMs(deadlineMs: Long): Long =
     (deadlineMs - System.currentTimeMillis()).coerceIn(0L, DELETE_DELAY_MS)
 

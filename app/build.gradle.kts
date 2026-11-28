@@ -16,8 +16,8 @@ android {
         applicationId = "com.zghonnyk.plateau"
         minSdk = 30
         targetSdk = 37
-        versionCode = 14
-        versionName = "1.0.14"
+        versionCode = 15
+        versionName = "1.0.15"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
