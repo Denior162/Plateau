@@ -5,13 +5,16 @@ import com.zghonnyk.domain.ActiveDryingPhase
 import com.zghonnyk.domain.AnalyzedPhase
 import com.zghonnyk.domain.DryingConfig
 import com.zghonnyk.domain.DryingForecast
+import com.zghonnyk.domain.Epoch
 import com.zghonnyk.domain.Measurement
 import com.zghonnyk.domain.MeasurementId
+import com.zghonnyk.domain.Noise
 import com.zghonnyk.domain.PlantFacts
 import com.zghonnyk.domain.PlantId
 import com.zghonnyk.domain.Tare
 import com.zghonnyk.domain.analyzeDrying
 import com.zghonnyk.domain.latestMoisture
+import com.zghonnyk.domain.noise
 import com.zghonnyk.domain.splitIntoPhases
 import com.zghonnyk.domain.state.Cmd
 import com.zghonnyk.domain.state.PlantIntent
@@ -112,14 +115,16 @@ class PlantEffectsImpl(
     }
 
     private val phaseAnalysisCache =
-        java.util.concurrent.ConcurrentHashMap<List<Measurement>, DryingForecast>()
+        java.util.concurrent.ConcurrentHashMap<Pair<List<Measurement>, Noise?>, DryingForecast>()
 
-    private fun analyzeCached(measurements: List<Measurement>): DryingForecast {
-        if (measurements.isEmpty()) return DryingForecast.InsufficientData(null)
-        return phaseAnalysisCache.getOrPut(measurements) {
-            ActiveDryingPhase(measurements).analyzeDrying(DryingConfig())
+
+    private val dryingConfig = DryingConfig()
+
+    private fun analyzeCached(measurements: List<Measurement>, noise: Noise?): DryingForecast =
+        if (measurements.isEmpty()) DryingForecast.InsufficientData(null)
+        else phaseAnalysisCache.getOrPut(measurements to noise) {
+            ActiveDryingPhase(measurements).analyzeDrying(dryingConfig, noise)
         }
-    }
 
     override fun observePlants(): Flow<List<PlantFacts>> =
         combine(
@@ -139,10 +144,10 @@ class PlantEffectsImpl(
                         weightGrams = it.weight_grams,
                     )
                 }
-
                 val phases = splitIntoPhases(measurements, emptyList())
+                val noise = listOf(Epoch(phases)).noise(dryingConfig)
                 val analyzedPhases = phases.map { phase ->
-                    AnalyzedPhase(phase, analyzeCached(phase.measurements))
+                    AnalyzedPhase(phase, analyzeCached(phase.measurements, noise))
                 }
 
                 val currentAnalyzed = analyzedPhases.lastOrNull()

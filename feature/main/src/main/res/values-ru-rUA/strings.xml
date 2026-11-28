@@ -105,4 +105,6 @@
     <string name="error_measurement_exists_at_time">Не удалось сохранить: измерение на это время уже существует</string>
     <string name="weighting_interval_is_not_calculated">Интервал взвешивания не рассчитан</string>
     <string name="add_photo">Добавить фото</string>
+    <string name="days_plateau_not_visible">Плато ещё не видно</string>
+    <string name="drying_constant_rate">Сохнет равномерно: %1$.1f г/д</string>
 </resources>

@@ -103,4 +103,6 @@
     <string name="error_measurement_exists_at_time">Ne eblis konservi: mezuro por ĉi tiu tempo jam ekzistas</string>
     <string name="weighting_interval_is_not_calculated">Intervalo de pesado ne kalkulita</string>
     <string name="add_photo">Aldoni foton</string>
+    <string name="days_plateau_not_visible">Altebenaĵo ankoraŭ ne videblas</string>
+    <string name="drying_constant_rate">Sekigas egale: %1$.1f g/t</string>
 </resources>

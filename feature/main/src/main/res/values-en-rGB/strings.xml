@@ -103,4 +103,6 @@
     <string name="error_measurement_exists_at_time">Failed to save: a measurement already exists at this time</string>
     <string name="weighting_interval_is_not_calculated">Weighing interval is not calculated</string>
     <string name="add_photo">Add photo</string>
+    <string name="days_plateau_not_visible">Plateau is not visible yet</string>
+    <string name="drying_constant_rate">Even drying: %1$.1f g/d</string>
 </resources>

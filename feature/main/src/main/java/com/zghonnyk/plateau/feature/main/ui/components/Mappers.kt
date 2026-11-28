@@ -23,11 +23,13 @@ fun DryingForecast.statusText(): String = when (this) {
     is DryingForecast.InsufficientData -> stringResource(R.string.drying_insufficient_data)
     is DryingForecast.StillDrying -> stringResource(R.string.drying_still, currentRate)
     is DryingForecast.NearPlateau -> stringResource(R.string.drying_near_plateau, currentRate)
+    is DryingForecast.ConstantRate -> stringResource(R.string.drying_constant_rate, rateGramsPerDay)
 }
 
 @Composable
 fun DryingForecast.daysText(): String = when (this) {
     is DryingForecast.InsufficientData -> stringResource(R.string.days_awaiting)
+    is DryingForecast.ConstantRate -> stringResource(R.string.days_plateau_not_visible)
     is DryingForecast.Active -> when (daysUntilPlateau) {
         0 -> stringResource(R.string.days_plateau_reached)
         else -> pluralStringResource(R.plurals.days_to_plateau, daysUntilPlateau, daysUntilPlateau)
